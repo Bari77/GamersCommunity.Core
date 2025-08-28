@@ -1,5 +1,5 @@
 ﻿using GamersCommunity.Core.Exceptions;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using Serilog;
@@ -13,38 +13,39 @@ namespace GamersCommunity.Core.Rabbit
         private readonly ConnectionFactory _factory;
         private IConnection? _connection;
         private IChannel? _channel;
+        private ILogger? _logger;
 
-        public RabbitMQProducer(IConfiguration configuration)
+        public RabbitMQProducer(IOptions<RabbitMQSettings> settings, ILogger logger)
         {
-            var rabbitMQConfig = configuration.GetSection("RabbitMQ");
             _factory = new ConnectionFactory
             {
-                HostName = rabbitMQConfig["HostName"]!,
-                UserName = rabbitMQConfig["UserName"]!,
-                Password = rabbitMQConfig["Password"]!
+                HostName = settings.Value.Hostname,
+                UserName = settings.Value.Username,
+                Password = settings.Value.Password
             };
+            _logger = logger;
         }
 
-        public async Task<BasicProperties> SendMessageAsync(string queue, string message)
+        public async Task<BasicProperties> SendMessageAsync(string queue, string message, CancellationToken ct = default)
         {
             var channel = await InitRabbitMQ();
 
             var body = Encoding.UTF8.GetBytes(message);
 
-            var replyQueue = await channel.QueueDeclareAsync();
+            var replyQueue = await channel.QueueDeclareAsync(cancellationToken: ct);
             var props = new BasicProperties
             {
                 CorrelationId = Guid.NewGuid().ToString(),
                 ReplyTo = replyQueue.QueueName
             };
 
-            Log.Debug($"Send message on {queue}...");
-            await channel.BasicPublishAsync(string.Empty, queue, false, props, body);
+            _logger?.Debug($"Send message on {queue}...");
+            await channel.BasicPublishAsync(string.Empty, queue, false, props, body, ct);
 
             return props;
         }
 
-        public async Task<string> GetResponseAsync(BasicProperties props)
+        public async Task<string> GetResponseAsync(BasicProperties props, CancellationToken ct)
         {
             var channel = await InitRabbitMQ();
             var tcs = new TaskCompletionSource<string>();
@@ -57,17 +58,16 @@ namespace GamersCommunity.Core.Rabbit
                     var response = Encoding.UTF8.GetString(ea.Body.ToArray());
                     tcs.SetResult(response);
 
-                    Log.Debug($"Got a response for {props.CorrelationId}");
+                    _logger?.Debug($"Got a response for {props.CorrelationId}");
                 }
 
-                // Accusé de réception
-                await channel.BasicAckAsync(ea.DeliveryTag, false);
+                await channel.BasicAckAsync(ea.DeliveryTag, false, ct);
             };
 
             try
             {
-                Log.Debug($"Wait a response for {props.CorrelationId} on {props.ReplyTo} key...");
-                var consumerTag = await channel.BasicConsumeAsync(props.ReplyTo!, false, consumer);
+                _logger?.Debug($"Wait a response for {props.CorrelationId} on {props.ReplyTo} key...");
+                var consumerTag = await channel.BasicConsumeAsync(props.ReplyTo!, false, consumer, ct);
 
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(SECONDS_BEFORE_CANCEL));
                 var task = tcs.Task;
@@ -75,7 +75,7 @@ namespace GamersCommunity.Core.Rabbit
 
                 if (completedTask == task)
                 {
-                    await channel.BasicCancelAsync(consumerTag);
+                    await channel.BasicCancelAsync(consumerTag, cancellationToken: ct);
                     return await task;
                 }
 
@@ -83,7 +83,7 @@ namespace GamersCommunity.Core.Rabbit
             }
             finally
             {
-                await channel.QueueDeleteAsync(props.ReplyTo!);
+                await channel.QueueDeleteAsync(props.ReplyTo!, cancellationToken: ct);
             }
         }
 
@@ -98,7 +98,7 @@ namespace GamersCommunity.Core.Rabbit
             {
                 _channel = await _connection.CreateChannelAsync();
 
-                Log.Information($"RabbitMQ initialized");
+                _logger?.Information($"RabbitMQ initialized");
             }
 
             return _channel;
