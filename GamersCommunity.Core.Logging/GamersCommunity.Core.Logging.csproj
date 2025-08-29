@@ -3,7 +3,7 @@
   <PropertyGroup>
 	<TargetFramework>net9.0</TargetFramework>
 	<PackageId>GamersCommunity.Core.Logging</PackageId>
-	<Version>0.0.1</Version>
+	<Version>0.0.2</Version>
 	<Authors>Bari</Authors>
 	<Description>GamersCommunity Core logging package</Description>
 	<ImplicitUsings>enable</ImplicitUsings>

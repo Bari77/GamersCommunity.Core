@@ -13,8 +13,9 @@
         /// <param name="action">CRUD Action (Create / Get / List / Update / Delete)</param>
         /// <param name="data">Data for action</param>
         /// <param name="id">Id of data</param>
+        /// <param name="ct">CancellationToken of request</param>
         /// <returns>String with value</returns>
-        Task<string> HandleAsync(string action, string data, int? id);
+        Task<string> HandleAsync(string action, string data, int? id, CancellationToken ct);
     }
 
 }
