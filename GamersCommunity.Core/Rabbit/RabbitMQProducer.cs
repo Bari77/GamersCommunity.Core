@@ -1,5 +1,6 @@
 ﻿using GamersCommunity.Core.Exceptions;
 using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using Serilog;
@@ -13,49 +14,36 @@ namespace GamersCommunity.Core.Rabbit
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The producer maintains a shared connection/channel and, for each request,
-    /// declares a server-named <c>exclusive</c> + <c>auto-delete</c> reply queue.
-    /// It then consumes from that queue (manual ack) until the expected correlation id arrives
-    /// or the timeout elapses.
-    /// </para>
-    /// <para>
-    /// Reliability notes:
-    /// - Validates inputs (queue, message) and throws early on misconfiguration.
-    /// - Logs and rethrows fatal connection errors (so an orchestrator can restart the service).
-    /// - Ensures consumer is cancelled and the temporary reply queue is deleted in all paths.
+    /// For each request, the producer declares a server-named <c>exclusive</c> + <c>auto-delete</c> reply queue,
+    /// consumes from it, and returns the payload from the JSON <see cref="RpcEnvelope{T}"/> when <c>ok=true</c>.
+    /// If <c>ok=false</c>, it throws an <see cref="RpcException"/> built from the returned <see cref="RpcError"/>.
     /// </para>
     /// </remarks>
-    /// <param name="opts">Options bound from the <c>RabbitMQ</c> section.</param>
-    /// <param name="logger">Application logger (untyped).</param>
+    /// <param name="opts">RabbitMQ settings.</param>
+    /// <param name="logger">Application logger (Serilog).</param>
     public class RabbitMQProducer(IOptions<RabbitMQSettings> opts, ILogger logger)
     {
-        /// <summary>
-        /// Default RPC timeout (in seconds) used by <see cref="GetResponseAsync(BasicProperties, CancellationToken)"/>.
-        /// </summary>
         private readonly long SECONDS_BEFORE_CANCEL = 30;
 
-        /// <summary>
-        /// RabbitMQ connection factory built from options.
-        /// </summary>
-        private readonly ConnectionFactory _factory = new()
+        private readonly ConnectionFactory factory = new()
         {
             HostName = opts.Value.Hostname,
             UserName = opts.Value.Username,
-            Password = opts.Value.Password,
+            Password = opts.Value.Password
         };
 
-        private IConnection? _connection;
-        private IChannel? _channel;
+        private IConnection? connection;
+        private IChannel? channel;
 
         /// <summary>
-        /// Publishes a message to <paramref name="queue"/> and returns the AMQP properties
-        /// containing the generated correlation id and the dedicated <c>ReplyTo</c> queue to listen on.
+        /// Publishes a message to the given queue using a fresh correlation id and a server-named reply queue.
+        /// The returned <see cref="BasicProperties"/> contains the <c>CorrelationId</c> and the <c>ReplyTo</c> queue name.
         /// </summary>
         /// <param name="queue">Target routing queue.</param>
         /// <param name="message">Opaque payload (typically JSON).</param>
         /// <param name="ct">Cancellation token.</param>
-        /// <returns>AMQP properties with <see cref="BasicProperties.CorrelationId"/> and <see cref="BasicProperties.ReplyTo"/>.</returns>
-        /// <exception cref="BadRequestException">Thrown when <paramref name="queue"/> or <paramref name="message"/> are invalid.</exception>
+        /// <returns>AMQP properties including <c>CorrelationId</c> and <c>ReplyTo</c>.</returns>
+        /// <exception cref="BadRequestException">Thrown when the queue or the message is invalid.</exception>
         public async Task<BasicProperties> SendMessageAsync(string queue, string message, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(queue))
@@ -63,12 +51,12 @@ namespace GamersCommunity.Core.Rabbit
             if (string.IsNullOrWhiteSpace(message))
                 throw new BadRequestException("Message must not be null or empty.");
 
-            var channel = await InitRabbitMQ();
+            var ch = await InitRabbitMQ();
 
             var body = Encoding.UTF8.GetBytes(message);
 
             // Temporary, exclusive reply queue (server-named)
-            var replyQueue = await channel.QueueDeclareAsync(
+            var replyQueue = await ch.QueueDeclareAsync(
                 queue: string.Empty,
                 durable: false,
                 exclusive: true,
@@ -79,11 +67,14 @@ namespace GamersCommunity.Core.Rabbit
             var props = new BasicProperties
             {
                 CorrelationId = Guid.NewGuid().ToString("N"),
-                ReplyTo = replyQueue.QueueName
+                ReplyTo = replyQueue.QueueName,
+                ContentType = "application/json",
+                ContentEncoding = "utf-8"
             };
 
             logger.Debug("Publishing RPC message to '{Queue}' (corrId={CorrelationId}).", queue, props.CorrelationId);
-            await channel.BasicPublishAsync(
+
+            await ch.BasicPublishAsync(
                 exchange: string.Empty,
                 routingKey: queue,
                 mandatory: false,
@@ -95,14 +86,15 @@ namespace GamersCommunity.Core.Rabbit
         }
 
         /// <summary>
-        /// Waits for the RPC response matching <paramref name="props"/>.<see cref="BasicProperties.CorrelationId"/>
-        /// on <paramref name="props"/>.<see cref="BasicProperties.ReplyTo"/>, with a default timeout.
+        /// Waits for the RPC response matching the provided <paramref name="props"/> correlation id
+        /// on the corresponding <paramref name="props"/> reply queue.
         /// </summary>
         /// <param name="props">AMQP properties returned by <see cref="SendMessageAsync(string, string, CancellationToken)"/>.</param>
         /// <param name="ct">Cancellation token.</param>
-        /// <returns>The response payload as a string.</returns>
+        /// <returns>The string payload from the <see cref="RpcEnvelope{T}"/> when <c>ok=true</c>.</returns>
         /// <exception cref="GatewayTimeoutException">Thrown when no response is received within the timeout.</exception>
         /// <exception cref="InternalServerErrorException">Thrown when <paramref name="props"/> are incomplete.</exception>
+        /// <exception cref="RpcException">Thrown when the consumer responded with <c>ok=false</c>.</exception>
         public async Task<string> GetResponseAsync(BasicProperties props, CancellationToken ct = default)
         {
             if (props is null)
@@ -112,21 +104,45 @@ namespace GamersCommunity.Core.Rabbit
             if (string.IsNullOrWhiteSpace(props.ReplyTo))
                 throw new InternalServerErrorException("ReplyTo must not be null or empty.");
 
-            var channel = await InitRabbitMQ();
+            var ch = await InitRabbitMQ();
             var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 
             string consumerTag = string.Empty;
 
-            var consumer = new AsyncEventingBasicConsumer(channel);
+            var consumer = new AsyncEventingBasicConsumer(ch);
             consumer.ReceivedAsync += async (_, ea) =>
             {
                 try
                 {
                     if (ea.BasicProperties?.CorrelationId == props.CorrelationId)
                     {
-                        var response = Encoding.UTF8.GetString(ea.Body.ToArray());
+                        var responseJson = Encoding.UTF8.GetString(ea.Body.ToArray());
                         logger.Debug("RPC response received (corrId={CorrelationId}).", props.CorrelationId);
-                        tcs.TrySetResult(response);
+
+                        try
+                        {
+                            var envelope = JsonConvert.DeserializeObject<RpcEnvelope<string?>>(responseJson);
+                            if (envelope is null)
+                                throw new RpcException("INVALID_RESPONSE", "Response cannot be deserialized.", responseJson);
+
+                            if (!envelope.Ok)
+                                throw new RpcException(
+                                    envelope.Error?.Code ?? "ERROR",
+                                    envelope.Error?.Message ?? "Unknown error",
+                                    envelope.Error?.Details);
+
+                            tcs.TrySetResult(envelope.Data ?? string.Empty);
+                        }
+                        catch (JsonException jex)
+                        {
+                            // Compatibility: if the consumer does not send an envelope yet, return the raw body.
+                            logger.Warning(jex, "Response is not a valid envelope. Returning raw body.");
+                            tcs.TrySetResult(responseJson);
+                        }
+                        catch (RpcException rex)
+                        {
+                            tcs.TrySetException(rex);
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -138,7 +154,7 @@ namespace GamersCommunity.Core.Rabbit
                 {
                     try
                     {
-                        await channel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: ct);
+                        await ch.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: ct);
                     }
                     catch (Exception ackEx)
                     {
@@ -149,10 +165,9 @@ namespace GamersCommunity.Core.Rabbit
 
             try
             {
-                logger.Debug("Waiting RPC response on '{ReplyTo}' (corrId={CorrelationId}, timeout={Timeout}s)...",
-                    props.ReplyTo, props.CorrelationId, SECONDS_BEFORE_CANCEL);
+                logger.Debug("Waiting RPC response on '{ReplyTo}' (corrId={CorrelationId}, timeout={Timeout}s)...", props.ReplyTo, props.CorrelationId, SECONDS_BEFORE_CANCEL);
 
-                consumerTag = await channel.BasicConsumeAsync(
+                consumerTag = await ch.BasicConsumeAsync(
                     queue: props.ReplyTo!,
                     autoAck: false,
                     consumer: consumer,
@@ -166,7 +181,7 @@ namespace GamersCommunity.Core.Rabbit
                 {
                     try
                     {
-                        await channel.BasicCancelAsync(consumerTag, cancellationToken: ct);
+                        await ch.BasicCancelAsync(consumerTag, cancellationToken: ct);
                     }
                     catch (Exception cancelEx)
                     {
@@ -180,17 +195,20 @@ namespace GamersCommunity.Core.Rabbit
             }
             finally
             {
+                // Best effort: cancel the consumer and delete the temporary reply queue.
                 try
                 {
                     if (!string.IsNullOrWhiteSpace(consumerTag))
-                        await channel.BasicCancelAsync(consumerTag, cancellationToken: ct);
+                        await channel!.BasicCancelAsync(consumerTag, cancellationToken: ct);
                 }
-                catch { /* best effort */ }
+                catch
+                {
+                    // Ignore cleanup errors
+                }
 
-                // Best-effort cleanup of the temporary reply queue
                 try
                 {
-                    await channel.QueueDeleteAsync(props.ReplyTo!, ifUnused: false, ifEmpty: false, cancellationToken: ct);
+                    await ch.QueueDeleteAsync(props.ReplyTo!, ifUnused: false, ifEmpty: false, cancellationToken: ct);
                 }
                 catch (Exception delEx)
                 {
@@ -200,7 +218,7 @@ namespace GamersCommunity.Core.Rabbit
         }
 
         /// <summary>
-        /// Ensures there is an open connection and channel, creating them if necessary.
+        /// Ensures there is an open RabbitMQ connection and channel, creating them if necessary.
         /// Logs and rethrows fatal errors to allow the host/container to fail fast.
         /// </summary>
         /// <returns>An open AMQP channel.</returns>
@@ -208,24 +226,24 @@ namespace GamersCommunity.Core.Rabbit
         {
             try
             {
-                if (_connection is null || !_connection.IsOpen)
+                if (connection is null || !connection.IsOpen)
                 {
-                    logger.Information("Opening RabbitMQ connection to {Host}...", _factory.HostName);
-                    _connection = await _factory.CreateConnectionAsync();
+                    logger.Information("Opening RabbitMQ connection to {Host}...", factory.HostName);
+                    connection = await factory.CreateConnectionAsync();
                     logger.Information("RabbitMQ connection established.");
                 }
 
-                if (_channel is null || !_channel.IsOpen)
+                if (channel is null || !channel.IsOpen)
                 {
-                    _channel = await _connection.CreateChannelAsync();
+                    channel = await connection.CreateChannelAsync();
                     logger.Information("RabbitMQ channel created.");
                 }
 
-                return _channel;
+                return channel;
             }
             catch (Exception ex)
             {
-                logger.Fatal(ex, "Failed to initialize RabbitMQ (host={Host}).", _factory.HostName);
+                logger.Fatal(ex, "Failed to initialize RabbitMQ (host={Host}).", factory.HostName);
                 throw;
             }
         }

@@ -100,72 +100,47 @@ namespace GamersCommunity.Core.Rabbit
             var consumer = new AsyncEventingBasicConsumer(channel);
             consumer.ReceivedAsync += async (_, ea) =>
             {
+                var props = ea.BasicProperties;
                 try
                 {
                     var body = ea.Body.ToArray();
                     var message = Encoding.UTF8.GetString(body);
 
-                    RabbitMQTableMessage? parsedMessage;
+                    RabbitMQTableMessage? parsed;
                     try
                     {
-                        parsedMessage = JsonConvert.DeserializeObject<RabbitMQTableMessage>(message);
+                        parsed = JsonConvert.DeserializeObject<RabbitMQTableMessage>(message);
+                        if (parsed is null)
+                            throw new InvalidOperationException("Deserialized message is null.");
                     }
                     catch (Exception ex)
                     {
                         logger.Error(ex, "Failed to deserialize incoming message. PayloadLength={Length}", body.Length);
-                        return; // auto-ack is true; skip this message
-                    }
-
-                    if (parsedMessage == null)
-                    {
-                        logger.Error("Deserialized message is null. Skipping.");
+                        await ReplyAsync(channel, props, new RpcEnvelope<object>(false, null,
+                            new RpcError("DESERIALIZE_ERROR", "Invalid payload.", ex.Message)), ct);
                         return;
                     }
 
-                    logger.Debug("Message received: table={Table}, action={Action}.", parsedMessage.Table, parsedMessage.Action);
+                    logger.Debug("Message received: table={Table}, action={Action}.", parsed.Table, parsed.Action);
 
-                    string? response = null;
                     try
                     {
-                        response = await tableRouter.RouteAsync(parsedMessage, ct);
+                        var data = await tableRouter.RouteAsync(parsed, ct); // string or any serializable object
+                        await ReplyAsync(channel, props, new RpcEnvelope<string?>(true, data, null), ct);
                     }
                     catch (Exception ex)
                     {
-                        logger.Error(ex, "Error while routing message (table={Table}, action={Action}).", parsedMessage.Table, parsedMessage.Action);
+                        logger.Error(ex, "Error while routing message (table={Table}, action={Action}).", parsed.Table, parsed.Action);
+                        await ReplyAsync(channel, props, new RpcEnvelope<object>(false, null,
+                            new RpcError("ROUTING_ERROR", "A server error occurred while processing the request.", ex.Message)), ct);
                     }
-
-                    var props = ea.BasicProperties;
-                    if (string.IsNullOrWhiteSpace(props?.ReplyTo))
-                    {
-                        logger.Warning("Missing ReplyTo for correlationId={CorrelationId}. Sender will not receive a response.", props?.CorrelationId);
-                        return;
-                    }
-
-                    var replyProps = new BasicProperties
-                    {
-                        CorrelationId = props.CorrelationId
-                    };
-
-                    var responseBytes = Encoding.UTF8.GetBytes(response ?? string.Empty);
-                    await channel.BasicPublishAsync(
-                        exchange: string.Empty,
-                        routingKey: props.ReplyTo,
-                        mandatory: false,
-                        basicProperties: replyProps,
-                        body: responseBytes,
-                        cancellationToken: ct
-                    );
-
-                    logger.Debug("Response sent to {ReplyTo} (correlationId={CorrelationId}).", props.ReplyTo, props.CorrelationId);
                 }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested)
-                {
-                    // Graceful stop — no action needed
-                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
                 catch (Exception ex)
                 {
-                    // Never let the consumer crash due to a single bad message
                     logger.Error(ex, "Unhandled error while processing an incoming message.");
+                    await ReplyAsync(channel, ea.BasicProperties, new RpcEnvelope<object>(false, null,
+                        new RpcError("UNHANDLED", "Unhandled error.", ex.Message)), ct);
                 }
             };
 
@@ -191,6 +166,34 @@ namespace GamersCommunity.Core.Rabbit
 
                 logger.Information("Consumer '{Tag}' cancelled.", consumerTag);
             }
+        }
+
+        private static async Task ReplyAsync(IChannel channel, IReadOnlyBasicProperties? requestProps, object envelope, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(requestProps?.ReplyTo))
+                return;
+
+            var replyProps = new BasicProperties
+            {
+                CorrelationId = requestProps.CorrelationId,
+                ContentType = "application/json",
+                ContentEncoding = "utf-8",
+                Headers = new Dictionary<string, object?>
+                {
+                    ["x-status"] = envelope is RpcEnvelope<object> e && e.Ok ? "ok" : "error"
+                }
+            };
+
+            var json = JsonConvert.SerializeObject(envelope);
+            var bytes = Encoding.UTF8.GetBytes(json);
+
+            await channel.BasicPublishAsync(
+                exchange: string.Empty,
+                routingKey: requestProps.ReplyTo,
+                mandatory: false,
+                basicProperties: replyProps,
+                body: bytes,
+                cancellationToken: ct);
         }
 
         /// <summary>

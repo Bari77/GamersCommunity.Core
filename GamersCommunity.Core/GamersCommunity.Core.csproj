@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
 	<PackageId>GamersCommunity.Core</PackageId>
-	<Version>0.0.4</Version>
+	<Version>0.0.5</Version>
 	<Authors>Bari</Authors>
 	<Description>GamersCommunity Core package</Description>
     <ImplicitUsings>enable</ImplicitUsings>
