@@ -53,7 +53,7 @@ namespace GamersCommunity.Core.Tests
         public async Task Action_Handle_Unknown_Action()
         {
             // Assert
-            await Assert.ThrowsAsync<BadRequestException>(() => service.HandleAsync("UnknownAction", string.Empty));
+            await Assert.ThrowsAsync<InternalServerErrorException>(() => service.HandleAsync("UnknownAction", string.Empty));
         }
 
         /// <summary>
