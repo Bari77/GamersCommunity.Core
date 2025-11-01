@@ -1,8 +1,8 @@
 ﻿using GamersCommunity.Core.Database;
 using GamersCommunity.Core.Exceptions;
 using GamersCommunity.Core.Rabbit;
+using GamersCommunity.Core.Serialization;
 using Microsoft.EntityFrameworkCore;
-using Newtonsoft.Json;
 using Serilog;
 
 namespace GamersCommunity.Core.Services
@@ -67,17 +67,17 @@ namespace GamersCommunity.Core.Services
                         throw new BadRequestException("Data mandatory");
                     }
                     var create = ConsumerParamParser.ToObject<TEntity>(data);
-                    return JsonConvert.SerializeObject(await CreateAsync(create, ct));
+                    return JsonSafe.Serialize(await CreateAsync(create, ct));
 
                 case "Get":
                     if (!id.HasValue)
                     {
                         throw new BadRequestException("Id mandatory");
                     }
-                    return JsonConvert.SerializeObject(await GetAsync(id.Value, ct));
+                    return JsonSafe.Serialize(await GetAsync(id.Value, ct));
 
                 case "List":
-                    return JsonConvert.SerializeObject(await ListAsync(ct));
+                    return JsonSafe.Serialize(await ListAsync(ct));
 
                 case "Update":
                     if (!id.HasValue)
@@ -89,14 +89,14 @@ namespace GamersCommunity.Core.Services
                         throw new BadRequestException("Data mandatory");
                     }
                     var update = ConsumerParamParser.ToObject<TEntity>(data);
-                    return JsonConvert.SerializeObject(await UpdateAsync(id.Value, update, ct));
+                    return JsonSafe.Serialize(await UpdateAsync(id.Value, update, ct));
 
                 case "Delete":
                     if (!id.HasValue)
                     {
                         throw new BadRequestException("Id mandatory");
                     }
-                    return JsonConvert.SerializeObject(await DeleteAsync(id.Value, ct));
+                    return JsonSafe.Serialize(await DeleteAsync(id.Value, ct));
 
                 default:
                     Log.Warning($"Action {action} not implemented");

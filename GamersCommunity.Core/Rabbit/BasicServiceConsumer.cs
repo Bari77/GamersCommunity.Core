@@ -1,4 +1,5 @@
 ﻿using GamersCommunity.Core.Exceptions;
+using GamersCommunity.Core.Serialization;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using RabbitMQ.Client;
@@ -184,7 +185,7 @@ namespace GamersCommunity.Core.Rabbit
                 }
             };
 
-            var json = JsonConvert.SerializeObject(envelope);
+            var json = JsonSafe.Serialize(envelope);
             var bytes = Encoding.UTF8.GetBytes(json);
 
             await channel.BasicPublishAsync(

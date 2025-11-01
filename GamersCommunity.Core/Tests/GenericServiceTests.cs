@@ -1,5 +1,6 @@
 ﻿using GamersCommunity.Core.Database;
 using GamersCommunity.Core.Exceptions;
+using GamersCommunity.Core.Serialization;
 using GamersCommunity.Core.Services;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
@@ -83,7 +84,7 @@ namespace GamersCommunity.Core.Tests
         public async Task Create_Test()
         {
             // Act
-            var result = await service.HandleAsync("Create", JsonConvert.SerializeObject(GetNewEntity()));
+            var result = await service.HandleAsync("Create", JsonSafe.Serialize(GetNewEntity()));
 
             // Assert
             var entity = JsonConvert.DeserializeObject<TEntity>(result);
