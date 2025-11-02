@@ -126,7 +126,7 @@ namespace GamersCommunity.Core.Services
         /// <exception cref="NotFoundException">Thrown when no entity matches <paramref name="id"/>.</exception>
         private async Task<TEntity> GetAsync(int id, CancellationToken ct = default)
         {
-            return await context.Set<TEntity>().FirstOrDefaultAsync(w => w.Id == id, ct)
+            return await context.Set<TEntity>().AsNoTracking().FirstOrDefaultAsync(w => w.Id == id, ct)
                    ?? throw new NotFoundException("Cannot find ressource");
         }
 
@@ -137,7 +137,7 @@ namespace GamersCommunity.Core.Services
         /// <returns>List of entities.</returns>
         private async Task<List<TEntity>> ListAsync(CancellationToken ct = default)
         {
-            return await context.Set<TEntity>().ToListAsync(ct);
+            return await context.Set<TEntity>().AsNoTracking().ToListAsync(ct);
         }
 
         /// <summary>
