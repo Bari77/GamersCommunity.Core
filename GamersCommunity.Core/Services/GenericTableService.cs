@@ -35,6 +35,10 @@ namespace GamersCommunity.Core.Services
         /// Logical name used by the router to match incoming messages to this service.
         /// </summary>
         public string TableName => tableName;
+        /// <summary>
+        /// Database context
+        /// </summary>
+        protected TContext Context => context;
 
         /// <summary>
         /// Dispatches the requested <paramref name="action"/> to the corresponding CRUD method and
@@ -57,7 +61,7 @@ namespace GamersCommunity.Core.Services
         /// <exception cref="InternalServerErrorException">
         /// Thrown when <paramref name="action"/> is not recognized/implemented.
         /// </exception>
-        public async Task<string> HandleAsync(string action, string? data = null, int? id = null, CancellationToken ct = default)
+        public virtual async Task<string> HandleAsync(string action, string? data = null, int? id = null, CancellationToken ct = default)
         {
             switch (action)
             {
@@ -110,10 +114,10 @@ namespace GamersCommunity.Core.Services
         /// <param name="entity">The entity to create.</param>
         /// <param name="ct">Cancellation token.</param>
         /// <returns>The created entity identifier.</returns>
-        private async Task<int> CreateAsync(TEntity entity, CancellationToken ct = default)
+        protected async Task<int> CreateAsync(TEntity entity, CancellationToken ct = default)
         {
-            await context.Set<TEntity>().AddAsync(entity, ct);
-            await context.SaveChangesAsync(ct);
+            await Context.Set<TEntity>().AddAsync(entity, ct);
+            await Context.SaveChangesAsync(ct);
             return entity.Id;
         }
 
@@ -124,9 +128,9 @@ namespace GamersCommunity.Core.Services
         /// <param name="ct">Cancellation token.</param>
         /// <returns>The matching entity.</returns>
         /// <exception cref="NotFoundException">Thrown when no entity matches <paramref name="id"/>.</exception>
-        private async Task<TEntity> GetAsync(int id, CancellationToken ct = default)
+        protected async Task<TEntity> GetAsync(int id, CancellationToken ct = default)
         {
-            return await context.Set<TEntity>().AsNoTracking().FirstOrDefaultAsync(w => w.Id == id, ct)
+            return await Context.Set<TEntity>().AsNoTracking().FirstOrDefaultAsync(w => w.Id == id, ct)
                    ?? throw new NotFoundException("Cannot find ressource");
         }
 
@@ -135,9 +139,9 @@ namespace GamersCommunity.Core.Services
         /// </summary>
         /// <param name="ct">Cancellation token.</param>
         /// <returns>List of entities.</returns>
-        private async Task<List<TEntity>> ListAsync(CancellationToken ct = default)
+        protected async Task<List<TEntity>> ListAsync(CancellationToken ct = default)
         {
-            return await context.Set<TEntity>().AsNoTracking().ToListAsync(ct);
+            return await Context.Set<TEntity>().AsNoTracking().ToListAsync(ct);
         }
 
         /// <summary>
@@ -147,10 +151,10 @@ namespace GamersCommunity.Core.Services
         /// <param name="entity">Entity instance carrying the new values.</param>
         /// <param name="ct">Cancellation token.</param>
         /// <returns><see langword="true"/> when the operation completes.</returns>
-        private async Task<bool> UpdateAsync(int id, TEntity entity, CancellationToken ct = default)
+        protected async Task<bool> UpdateAsync(int id, TEntity entity, CancellationToken ct = default)
         {
-            context.Update(entity);
-            await context.SaveChangesAsync(ct);
+            Context.Update(entity);
+            await Context.SaveChangesAsync(ct);
             return true;
         }
 
@@ -160,11 +164,11 @@ namespace GamersCommunity.Core.Services
         /// <param name="id">Identifier of the entity to remove.</param>
         /// <param name="ct">Cancellation token.</param>
         /// <returns><see langword="true"/> when the operation completes.</returns>
-        private async Task<bool> DeleteAsync(int id, CancellationToken ct = default)
+        protected async Task<bool> DeleteAsync(int id, CancellationToken ct = default)
         {
             var data = await GetAsync(id, ct);
-            context.Remove(data);
-            await context.SaveChangesAsync(ct);
+            Context.Remove(data);
+            await Context.SaveChangesAsync(ct);
             return true;
         }
     }
