@@ -72,7 +72,7 @@ namespace GamersCommunity.Core.Rabbit
         /// <summary>
         /// RabbitMQ connection factory built from options.
         /// </summary>
-        private readonly ConnectionFactory _factory = new()
+        private readonly ConnectionFactory Factory = new()
         {
             HostName = opts.Value.Hostname,
             UserName = opts.Value.Username,
@@ -94,7 +94,7 @@ namespace GamersCommunity.Core.Rabbit
             if (string.IsNullOrWhiteSpace(QUEUE))
                 throw new InternalServerErrorException("Queue name must not be null or empty.");
 
-            logger.Information("Starting consumer on host '{Host}' for queue '{Queue}'.", _factory.HostName, QUEUE);
+            logger.Information("Starting consumer on host '{Host}' for queue '{Queue}'.", Factory.HostName, QUEUE);
 
             var channel = await InitRabbitMQAsync(ct);
 
@@ -126,7 +126,7 @@ namespace GamersCommunity.Core.Rabbit
 
                     try
                     {
-                        var data = await tableRouter.RouteAsync(parsed, ct); // string or any serializable object
+                        var data = await tableRouter.RouteAsync(parsed, ct);
                         await ReplyAsync(channel, props, new RpcEnvelope<string?>(true, data, null), ct);
                     }
                     catch (Exception ex)
@@ -145,17 +145,14 @@ namespace GamersCommunity.Core.Rabbit
                 }
             };
 
-            // autoAck: true (keeps existing behavior)
             var consumerTag = await channel.BasicConsumeAsync(queue: QUEUE!, autoAck: true, consumer: consumer, cancellationToken: ct);
 
             try
             {
-                // Keep the consumer alive until cancellation is requested
                 await Task.Delay(Timeout.Infinite, ct);
             }
             catch (OperationCanceledException)
             {
-                // Attempt to cancel cleanly
                 try
                 {
                     await channel.BasicCancelAsync(consumerTag, cancellationToken: ct);
@@ -214,8 +211,8 @@ namespace GamersCommunity.Core.Rabbit
 
             try
             {
-                logger.Debug("Opening RabbitMQ connection to {Host}...", _factory.HostName);
-                var connection = await _factory.CreateConnectionAsync(ct);
+                logger.Debug("Opening RabbitMQ connection to {Host}...", Factory.HostName);
+                var connection = await Factory.CreateConnectionAsync(ct);
                 var channel = await connection.CreateChannelAsync(cancellationToken: ct);
 
                 await channel.QueueDeclareAsync(
@@ -236,7 +233,7 @@ namespace GamersCommunity.Core.Rabbit
             }
             catch (Exception ex)
             {
-                logger.Fatal(ex, "Failed to initialize RabbitMQ connection/channel (host={Host}, queue={Queue}).", _factory.HostName, QUEUE);
+                logger.Fatal(ex, "Failed to initialize RabbitMQ connection/channel (host={Host}, queue={Queue}).", Factory.HostName, QUEUE);
                 throw;
             }
         }

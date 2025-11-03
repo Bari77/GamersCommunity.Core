@@ -15,7 +15,8 @@
     ///   "RabbitMQ": {
     ///     "Hostname": "localhost",
     ///     "Username": "guest",
-    ///     "Password": "guest"
+    ///     "Password": "guest",
+    ///     "Timeout": 10
     ///   }
     /// }
     /// </code>
@@ -37,5 +38,11 @@
         /// Store securely (user secrets, environment variables, or a secret manager).
         /// </summary>
         public required string Password { get; set; }
+
+        /// <summary>
+        /// Timeout in secondes
+        /// default: 10s
+        /// </summary>
+        public required int Timeout { get; set; } = 10;
     }
 }

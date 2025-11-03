@@ -23,17 +23,15 @@ namespace GamersCommunity.Core.Rabbit
     /// <param name="logger">Application logger (Serilog).</param>
     public class RabbitMQProducer(IOptions<RabbitMQSettings> opts, ILogger logger)
     {
-        private readonly long SECONDS_BEFORE_CANCEL = 30;
-
-        private readonly ConnectionFactory factory = new()
+        private readonly ConnectionFactory Factory = new()
         {
             HostName = opts.Value.Hostname,
             UserName = opts.Value.Username,
             Password = opts.Value.Password
         };
 
-        private IConnection? connection;
-        private IChannel? channel;
+        private IConnection? Connection;
+        private IChannel? Channel;
 
         /// <summary>
         /// Publishes a message to the given queue using a fresh correlation id and a server-named reply queue.
@@ -55,7 +53,6 @@ namespace GamersCommunity.Core.Rabbit
 
             var body = Encoding.UTF8.GetBytes(message);
 
-            // Temporary, exclusive reply queue (server-named)
             var replyQueue = await ch.QueueDeclareAsync(
                 queue: string.Empty,
                 durable: false,
@@ -135,7 +132,6 @@ namespace GamersCommunity.Core.Rabbit
                         }
                         catch (JsonException jex)
                         {
-                            // Compatibility: if the consumer does not send an envelope yet, return the raw body.
                             logger.Warning(jex, "Response is not a valid envelope. Returning raw body.");
                             tcs.TrySetResult(responseJson);
                         }
@@ -165,7 +161,7 @@ namespace GamersCommunity.Core.Rabbit
 
             try
             {
-                logger.Debug("Waiting RPC response on '{ReplyTo}' (corrId={CorrelationId}, timeout={Timeout}s)...", props.ReplyTo, props.CorrelationId, SECONDS_BEFORE_CANCEL);
+                logger.Debug("Waiting RPC response on '{ReplyTo}' (corrId={CorrelationId}, timeout={Timeout}s)...", props.ReplyTo, props.CorrelationId, opts.Value.Timeout);
 
                 consumerTag = await ch.BasicConsumeAsync(
                     queue: props.ReplyTo!,
@@ -174,7 +170,7 @@ namespace GamersCommunity.Core.Rabbit
                     cancellationToken: ct);
 
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                linkedCts.CancelAfter(TimeSpan.FromSeconds(SECONDS_BEFORE_CANCEL));
+                linkedCts.CancelAfter(TimeSpan.FromSeconds(opts.Value.Timeout));
 
                 var completed = await Task.WhenAny(tcs.Task, Task.Delay(Timeout.InfiniteTimeSpan, linkedCts.Token));
                 if (completed == tcs.Task)
@@ -191,19 +187,17 @@ namespace GamersCommunity.Core.Rabbit
                     return await tcs.Task.ConfigureAwait(false);
                 }
 
-                throw new GatewayTimeoutException($"No response received within the timeout period ({SECONDS_BEFORE_CANCEL}s).");
+                throw new GatewayTimeoutException($"No response received within the timeout period ({opts.Value.Timeout}s).");
             }
             finally
             {
-                // Best effort: cancel the consumer and delete the temporary reply queue.
                 try
                 {
                     if (!string.IsNullOrWhiteSpace(consumerTag))
-                        await channel!.BasicCancelAsync(consumerTag, cancellationToken: ct);
+                        await Channel!.BasicCancelAsync(consumerTag, cancellationToken: ct);
                 }
                 catch
                 {
-                    // Ignore cleanup errors
                 }
 
                 try
@@ -226,24 +220,24 @@ namespace GamersCommunity.Core.Rabbit
         {
             try
             {
-                if (connection is null || !connection.IsOpen)
+                if (Connection is null || !Connection.IsOpen)
                 {
-                    logger.Information("Opening RabbitMQ connection to {Host}...", factory.HostName);
-                    connection = await factory.CreateConnectionAsync();
+                    logger.Information("Opening RabbitMQ connection to {Host}...", Factory.HostName);
+                    Connection = await Factory.CreateConnectionAsync();
                     logger.Information("RabbitMQ connection established.");
                 }
 
-                if (channel is null || !channel.IsOpen)
+                if (Channel is null || !Channel.IsOpen)
                 {
-                    channel = await connection.CreateChannelAsync();
+                    Channel = await Connection.CreateChannelAsync();
                     logger.Information("RabbitMQ channel created.");
                 }
 
-                return channel;
+                return Channel;
             }
             catch (Exception ex)
             {
-                logger.Fatal(ex, "Failed to initialize RabbitMQ (host={Host}).", factory.HostName);
+                logger.Fatal(ex, "Failed to initialize RabbitMQ (host={Host}).", Factory.HostName);
                 throw;
             }
         }
