@@ -11,7 +11,7 @@ namespace GamersCommunity.Core.Rabbit
 {
     /// <summary>
     /// Base class for RabbitMQ service consumers that read messages from a queue
-    /// and dispatch them (typically via a <c>TableRouter</c> in derived classes).
+    /// and dispatch them (typically via a <c>BusRouter</c> in derived classes).
     /// </summary>
     /// <remarks>
     /// <para>
@@ -28,8 +28,8 @@ namespace GamersCommunity.Core.Rabbit
     /// <param name="opts">
     /// Options containing RabbitMQ settings (bound from the <c>RabbitMQ</c> configuration section).
     /// </param>
-    /// <param name="tableRouter">
-    /// Router used by consumers to dispatch messages to the appropriate table/action handlers.
+    /// <param name="router">
+    /// Router used by consumers to dispatch messages to the appropriate type/ressource/action handlers.
     /// </param>
     /// <param name="logger">
     /// Logger of main service
@@ -38,7 +38,7 @@ namespace GamersCommunity.Core.Rabbit
     /// <code>
     /// public sealed class UsersConsumer : BasicServiceConsumer
     /// {
-    ///     public UsersConsumer(IOptions<RabbitMQSettings> opts, TableRouter router)
+    ///     public UsersConsumer(IOptions<RabbitMQSettings> opts, BusRouter router)
     ///         : base(opts, router)
     ///     {
     ///         QUEUE = "users_queue";
@@ -47,7 +47,7 @@ namespace GamersCommunity.Core.Rabbit
     /// }
     /// </code>
     /// </example>
-    public abstract class BasicServiceConsumer(IOptions<RabbitMQSettings> opts, TableRouter tableRouter, ILogger logger)
+    public abstract class BasicServiceConsumer(IOptions<RabbitMQSettings> opts, BusRouter router, ILogger logger)
     {
         /// <summary>
         /// Optional RabbitMQ exchange name the consumer queue may be bound to.
@@ -107,10 +107,10 @@ namespace GamersCommunity.Core.Rabbit
                     var body = ea.Body.ToArray();
                     var message = Encoding.UTF8.GetString(body);
 
-                    RabbitMQTableMessage? parsed;
+                    BusMessage? parsed;
                     try
                     {
-                        parsed = JsonConvert.DeserializeObject<RabbitMQTableMessage>(message);
+                        parsed = JsonConvert.DeserializeObject<BusMessage>(message);
                         if (parsed is null)
                             throw new InvalidOperationException("Deserialized message is null.");
                     }
@@ -122,27 +122,22 @@ namespace GamersCommunity.Core.Rabbit
                         return;
                     }
 
-                    logger.Debug("Message received: table={Table}, action={Action}.", parsed.Table, parsed.Action);
+                    logger.Debug("Message received: type={Type}, resource={Resource}, action={Action}.", parsed.Type, parsed.Resource, parsed.Action);
 
                     try
                     {
-                        var data = await tableRouter.RouteAsync(parsed, ct);
+                        var data = await router.RouteAsync(parsed, ct);
                         await ReplyAsync(channel, props, new RpcEnvelope<string?>(true, data, null), ct);
+                    }
+                    catch (AppException ex)
+                    {
+                        logger.Error(ex, "Error while routing message: type={Type}, resource={Resource}, action={Action}.", parsed.Type, parsed.Resource, parsed.Action);
+                        await ReplyAsync(channel, props, new RpcEnvelope<object>(false, null, new RpcError(ex.Code, ex.Message, ex.StackTrace)), ct);
                     }
                     catch (Exception ex)
                     {
-                        logger.Error(ex, "Error while routing message (table={Table}, action={Action}).", parsed.Table, parsed.Action);
-
-                        RpcError error;
-                        if (ex is IAppException appException)
-                        {
-                            error = new RpcError(appException.Code, ex.Message, ex.StackTrace);
-                        }
-                        else
-                        {
-                            error = new RpcError("MS_ERROR", ex.Message, ex.StackTrace);
-                        }
-                        await ReplyAsync(channel, props, new RpcEnvelope<object>(false, null, error), ct);
+                        logger.Error(ex, "Error while routing message: type={Type}, resource={Resource}, action={Action}.", parsed.Type, parsed.Resource, parsed.Action);
+                        await ReplyAsync(channel, props, new RpcEnvelope<object>(false, null, new RpcError("MS_ERROR", ex.Message, ex.StackTrace)), ct);
                     }
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested) { }

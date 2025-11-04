@@ -1,5 +1,6 @@
 ﻿using GamersCommunity.Core.Database;
 using GamersCommunity.Core.Exceptions;
+using GamersCommunity.Core.Rabbit;
 using GamersCommunity.Core.Serialization;
 using GamersCommunity.Core.Services;
 using Microsoft.EntityFrameworkCore;
@@ -54,7 +55,11 @@ namespace GamersCommunity.Core.Tests
         public async Task Action_Handle_Unknown_Action()
         {
             // Assert
-            await Assert.ThrowsAsync<InternalServerErrorException>(() => service.HandleAsync("UnknownAction", string.Empty));
+            await Assert.ThrowsAsync<InternalServerErrorException>(() => service.HandleAsync(new BusMessage()
+            {
+                Action = "UnknownAction",
+                Resource = string.Empty
+            }));
         }
 
         /// <summary>
@@ -73,7 +78,12 @@ namespace GamersCommunity.Core.Tests
         public async Task Action_Handle_Throw_Invalid_Data(string exception, string action, string? data = null, int? id = null)
         {
             // Assert
-            var ex = await Assert.ThrowsAsync<BadRequestException>(() => service.HandleAsync(action, data, id));
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() => service.HandleAsync(new BusMessage()
+            {
+                Action = action,
+                Data = data,
+                Id = id
+            }));
             Assert.Equal(exception, ex.Message);
         }
 
@@ -84,7 +94,11 @@ namespace GamersCommunity.Core.Tests
         public async Task Create_Test()
         {
             // Act
-            var result = await service.HandleAsync("Create", JsonSafe.Serialize(GetNewEntity()));
+            var result = await service.HandleAsync(new BusMessage()
+            {
+                Action = "Create",
+                Data = JsonSafe.Serialize(GetNewEntity())
+            });
 
             // Assert
             var entity = JsonConvert.DeserializeObject<TEntity>(result);
@@ -103,7 +117,11 @@ namespace GamersCommunity.Core.Tests
         public async Task Get_By_Id(int id, int? expected)
         {
             // Act
-            var result = await service.HandleAsync("Get", id: id);
+            var result = await service.HandleAsync(new BusMessage()
+            {
+                Action = "Get",
+                Id = id,
+            });
 
             // Assert
             var entity = JsonConvert.DeserializeObject<TEntity>(result);
@@ -117,7 +135,11 @@ namespace GamersCommunity.Core.Tests
         public async Task List_All()
         {
             // Act
-            var result = await service.HandleAsync("List", string.Empty);
+            var result = await service.HandleAsync(new BusMessage()
+            {
+                Action = "List",
+                Resource = string.Empty
+            });
             var entities = JsonConvert.DeserializeObject<List<TEntity>>(result);
 
             // Assert

@@ -181,7 +181,7 @@ namespace GamersCommunity.Core.Rabbit
                     }
                     catch (Exception cancelEx)
                     {
-                        logger.Warning(cancelEx, "Failed to cancel RPC consumer (tag={Tag}).", consumerTag);
+                        logger.Warning(cancelEx, "Failed to cancel RPC consumer: tag={Tag}.", consumerTag);
                     }
 
                     return await tcs.Task.ConfigureAwait(false);

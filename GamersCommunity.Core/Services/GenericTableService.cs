@@ -1,4 +1,5 @@
 ﻿using GamersCommunity.Core.Database;
+using GamersCommunity.Core.Enums;
 using GamersCommunity.Core.Exceptions;
 using GamersCommunity.Core.Rabbit;
 using GamersCommunity.Core.Serialization;
@@ -12,7 +13,7 @@ namespace GamersCommunity.Core.Services
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This service implements the <see cref="ITableService"/> contract for a single logical table,
+    /// This service implements the <see cref="IBusService"/> contract for a single logical table,
     /// translating incoming actions (<c>Create</c>, <c>Get</c>, <c>List</c>, <c>Update</c>, <c>Delete</c>)
     /// into EF Core operations on <typeparamref name="TEntity"/>.
     /// </para>
@@ -27,84 +28,64 @@ namespace GamersCommunity.Core.Services
     /// </typeparam>
     /// <param name="context">Database context instance used for CRUD operations.</param>
     /// <param name="tableName">Logical table name advertised to the router.</param>
-    public class GenericTableService<TContext, TEntity>(TContext context, string tableName) : ITableService
+    public class GenericTableService<TContext, TEntity>(TContext context, string tableName) : IBusService
         where TContext : DbContext
         where TEntity : class, IKeyTable
     {
-        /// <summary>
-        /// Logical name used by the router to match incoming messages to this service.
-        /// </summary>
-        public string TableName => tableName;
+        /// <inheritdoc/>
+        BusServiceTypeEnum IBusService.Type => BusServiceTypeEnum.TABLE;
+        /// <inheritdoc/>
+        public string Resource => tableName;
         /// <summary>
         /// Database context
         /// </summary>
         protected TContext Context => context;
 
-        /// <summary>
-        /// Dispatches the requested <paramref name="action"/> to the corresponding CRUD method and
-        /// returns a JSON-serialized result.
-        /// </summary>
-        /// <param name="action">
-        /// One of <c>Create</c>, <c>Get</c>, <c>List</c>, <c>Update</c>, <c>Delete</c>.
-        /// </param>
-        /// <param name="data">
-        /// Optional JSON payload. Required for <c>Create</c> and <c>Update</c> (represents a <typeparamref name="TEntity"/> instance).
-        /// </param>
-        /// <param name="id">
-        /// Optional identifier. Required for <c>Get</c>, <c>Update</c>, and <c>Delete</c>.
-        /// </param>
-        /// <param name="ct">Cancellation token.</param>
-        /// <returns>JSON string containing the operation result.</returns>
-        /// <exception cref="BadRequestException">
-        /// Thrown when required inputs are missing or cannot be parsed from <paramref name="data"/>.
-        /// </exception>
-        /// <exception cref="InternalServerErrorException">
-        /// Thrown when <paramref name="action"/> is not recognized/implemented.
-        /// </exception>
-        public virtual async Task<string> HandleAsync(string action, string? data = null, int? id = null, CancellationToken ct = default)
+        /// <inheritdoc/>
+        public virtual async Task<string> HandleAsync(BusMessage message, CancellationToken ct = default)
         {
-            switch (action)
+            switch (message.Action.ToUpperInvariant())
             {
-                case "Create":
-                    if (string.IsNullOrEmpty(data))
+                case "CREATE":
+                    if (string.IsNullOrEmpty(message.Data))
                     {
                         throw new BadRequestException("DATA_MANDATORY", "Data mandatory");
                     }
-                    var create = ConsumerParamParser.ToObject<TEntity>(data);
+                    var create = ConsumerParamParser.ToObject<TEntity>(message.Data);
                     return JsonSafe.Serialize(await CreateAsync(create, ct));
 
-                case "Get":
-                    if (!id.HasValue)
+                case "GET":
+                    if (!message.Id.HasValue)
                     {
                         throw new BadRequestException("ID_MANDATORY", "Id mandatory");
                     }
-                    return JsonSafe.Serialize(await GetAsync(id.Value, ct));
+                    return JsonSafe.Serialize(await GetAsync(message.Id.Value, ct));
 
-                case "List":
+                case "LIST":
                     return JsonSafe.Serialize(await ListAsync(ct));
 
-                case "Update":
-                    if (!id.HasValue)
+                case "UPDATE":
+                    if (!message.Id.HasValue)
                     {
                         throw new BadRequestException("ID_MANDATORY", "Id mandatory");
                     }
-                    if (string.IsNullOrEmpty(data))
+                    if (string.IsNullOrEmpty(message.Data))
                     {
                         throw new BadRequestException("DATA_MANDATORY", "Data mandatory");
                     }
-                    var update = ConsumerParamParser.ToObject<TEntity>(data);
-                    return JsonSafe.Serialize(await UpdateAsync(id.Value, update, ct));
+                    var update = ConsumerParamParser.ToObject<TEntity>(message.Data);
+                    return JsonSafe.Serialize(await UpdateAsync(message.Id.Value, update, ct));
 
-                case "Delete":
-                    if (!id.HasValue)
+                case "DELETE":
+                    if (!message.Id.HasValue)
                     {
                         throw new BadRequestException("ID_MANDATORY", "Id mandatory");
                     }
-                    return JsonSafe.Serialize(await DeleteAsync(id.Value, ct));
+                    return JsonSafe.Serialize(await DeleteAsync(message.Id.Value, ct));
 
                 default:
-                    Log.Warning($"Action {action} not implemented");
-                    throw new InternalServerErrorException("ACTION_NOT_IMPLEMENTED", $"Action {action} not implemented");
+                    Log.Warning($"Action {message.Action} not implemented");
+                    throw new InternalServerErrorException("ACTION_NOT_IMPLEMENTED", $"Action {message.Action} not implemented");
             }
         }
 
