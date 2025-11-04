@@ -1,4 +1,6 @@
-﻿namespace GamersCommunity.Core.Exceptions
+﻿using System.Net;
+
+namespace GamersCommunity.Core.Exceptions
 {
     /// <summary>
     /// Exception thrown by the producer when the consumer returns an RPC envelope with <c>ok=false</c>.
@@ -9,16 +11,17 @@
     /// <param name="code">A short, machine-friendly error code.</param>
     /// <param name="message">A human-readable error message.</param>
     /// <param name="details">Optional technical details.</param>
-    public sealed class RpcException(string code, string message, string? details = null) : Exception($"{code}: {message}{(details is null ? "" : $" — {details}")}")
+    public sealed class RpcException(string code, string? message, string? details = null) : Exception($"{message}{(details is null ? "" : $" — {details}")}"), IAppException
     {
-        /// <summary>
-        /// Gets the error code returned by the consumer.
-        /// </summary>
+        /// <inheritdoc/>
         public string Code { get; } = code;
 
         /// <summary>
         /// Gets additional error details returned by the consumer, when available.
         /// </summary>
         public string? Details { get; } = details;
+
+        /// <inheritdoc/>
+        public HttpStatusCode StatusCode => HttpStatusCode.InternalServerError;
     }
 }

@@ -23,7 +23,7 @@ namespace GamersCommunity.Core.Rabbit
         {
             if (!short.TryParse(data, out short result))
             {
-                throw new BadRequestException("Can't be parse to short");
+                throw new BadRequestException("PARSE_SHORT", "Can't be parse to short");
             }
             return result;
         }
@@ -38,7 +38,7 @@ namespace GamersCommunity.Core.Rabbit
         {
             if (!int.TryParse(data, out int result))
             {
-                throw new BadRequestException("Can't be parse to int");
+                throw new BadRequestException("PARSE_INT", "Can't be parse to int");
             }
             return result;
         }
@@ -55,7 +55,7 @@ namespace GamersCommunity.Core.Rabbit
         {
             if (!int.TryParse(data.ToString(), out int result))
             {
-                throw new BadRequestException("Can't be parse to int");
+                throw new BadRequestException("PARSE_INT", "Can't be parse to int");
             }
             return result;
         }
@@ -70,7 +70,7 @@ namespace GamersCommunity.Core.Rabbit
         {
             if (!long.TryParse(data, out long result))
             {
-                throw new BadRequestException("Can't be parse to long");
+                throw new BadRequestException("PARSE_LONG", "Can't be parse to long");
             }
             return result;
         }
@@ -93,12 +93,12 @@ namespace GamersCommunity.Core.Rabbit
             }
             catch (Exception)
             {
-                throw new BadRequestException("Param can't be parse");
+                throw new BadRequestException("PARSE_OBJECT", "Param can't be parse");
             }
 
             if (result == null)
             {
-                throw new BadRequestException("Param can't be null");
+                throw new BadRequestException("PARSE_NOT_NULL", "Param can't be null");
             }
 
             return result;
@@ -123,7 +123,7 @@ namespace GamersCommunity.Core.Rabbit
             }
             catch (Exception)
             {
-                throw new BadRequestException("Param can't be parse");
+                throw new BadRequestException("PARSE_NULLABLE_OBJECT", "Param can't be parse");
             }
 
             return result;
@@ -152,17 +152,17 @@ namespace GamersCommunity.Core.Rabbit
             }
             catch (Exception)
             {
-                throw new BadRequestException("Param can't be parse");
+                throw new BadRequestException("PARSE_LIST", "Param can't be parse");
             }
 
             if (result == null)
             {
-                throw new BadRequestException("Param can't be null");
+                throw new BadRequestException("PARSE_NOT_NULL", "Param can't be null");
             }
 
             if (throwIfEmpty && result.Count == 0)
             {
-                throw new BadRequestException("Param list can't be empty");
+                throw new BadRequestException("PARSE_NOT_EMPTY_LIST", "Param list can't be empty");
             }
 
             return result;
@@ -185,7 +185,7 @@ namespace GamersCommunity.Core.Rabbit
             }
             catch (Exception)
             {
-                throw new BadRequestException("Param can't be parse");
+                throw new BadRequestException("PARSE_NULLABLE_LIST", "Param can't be parse");
             }
         }
     }

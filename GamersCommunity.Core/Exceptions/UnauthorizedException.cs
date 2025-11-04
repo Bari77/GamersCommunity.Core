@@ -10,6 +10,7 @@ namespace GamersCommunity.Core.Exceptions
     /// It maps to <see cref="HttpStatusCode.Unauthorized"/>. For authorization/permission errors, prefer
     /// <c>ForbiddenException</c> (HTTP 403).
     /// </remarks>
+    /// <param name="code">Human-readable code of the validation or input error.</param>
     /// <param name="message">Human-readable description of the authentication failure.</param>
     /// <example>
     /// <code>
@@ -17,11 +18,12 @@ namespace GamersCommunity.Core.Exceptions
     ///     throw new UnauthorizedException("Invalid or expired access token.");
     /// </code>
     /// </example>
-    public class UnauthorizedException(string message) : Exception(message), IAppException
+    public class UnauthorizedException(string code, string? message) : Exception(message), IAppException
     {
-        /// <summary>
-        /// Gets the HTTP status code associated with this exception (401).
-        /// </summary>
-        public HttpStatusCode Code => HttpStatusCode.Unauthorized;
+        /// <inheritdoc/>
+        public string Code => code;
+
+        /// <inheritdoc/>
+        public HttpStatusCode StatusCode => HttpStatusCode.Unauthorized;
     }
 }

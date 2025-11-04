@@ -68,7 +68,7 @@ namespace GamersCommunity.Core.Services
                 case "Create":
                     if (string.IsNullOrEmpty(data))
                     {
-                        throw new BadRequestException("Data mandatory");
+                        throw new BadRequestException("DATA_MANDATORY", "Data mandatory");
                     }
                     var create = ConsumerParamParser.ToObject<TEntity>(data);
                     return JsonSafe.Serialize(await CreateAsync(create, ct));
@@ -76,7 +76,7 @@ namespace GamersCommunity.Core.Services
                 case "Get":
                     if (!id.HasValue)
                     {
-                        throw new BadRequestException("Id mandatory");
+                        throw new BadRequestException("ID_MANDATORY", "Id mandatory");
                     }
                     return JsonSafe.Serialize(await GetAsync(id.Value, ct));
 
@@ -86,11 +86,11 @@ namespace GamersCommunity.Core.Services
                 case "Update":
                     if (!id.HasValue)
                     {
-                        throw new BadRequestException("Id mandatory");
+                        throw new BadRequestException("ID_MANDATORY", "Id mandatory");
                     }
                     if (string.IsNullOrEmpty(data))
                     {
-                        throw new BadRequestException("Data mandatory");
+                        throw new BadRequestException("DATA_MANDATORY", "Data mandatory");
                     }
                     var update = ConsumerParamParser.ToObject<TEntity>(data);
                     return JsonSafe.Serialize(await UpdateAsync(id.Value, update, ct));
@@ -98,13 +98,13 @@ namespace GamersCommunity.Core.Services
                 case "Delete":
                     if (!id.HasValue)
                     {
-                        throw new BadRequestException("Id mandatory");
+                        throw new BadRequestException("ID_MANDATORY", "Id mandatory");
                     }
                     return JsonSafe.Serialize(await DeleteAsync(id.Value, ct));
 
                 default:
                     Log.Warning($"Action {action} not implemented");
-                    throw new InternalServerErrorException($"Action {action} not implemented");
+                    throw new InternalServerErrorException("ACTION_NOT_IMPLEMENTED", $"Action {action} not implemented");
             }
         }
 
@@ -131,7 +131,7 @@ namespace GamersCommunity.Core.Services
         protected async Task<TEntity> GetAsync(int id, CancellationToken ct = default)
         {
             return await Context.Set<TEntity>().AsNoTracking().FirstOrDefaultAsync(w => w.Id == id, ct)
-                   ?? throw new NotFoundException("Cannot find ressource");
+                   ?? throw new NotFoundException("NOT_FOUND", "Cannot find ressource");
         }
 
         /// <summary>

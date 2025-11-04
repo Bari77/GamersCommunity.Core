@@ -18,6 +18,7 @@
     /// Example JSON response:
     /// <code>
     /// {
+    ///   "code": "ERROR",
     ///   "message": "An unexpected error occurred.",
     ///   "exception": "System.NullReferenceException: ...",
     ///   "traceId": "00-5b8c9e2f7b9d3b91c2f7e3d9f1ab1234-1c2b3a4d5e6f7890-00"
@@ -27,13 +28,22 @@
     public class ExceptionResult
     {
         /// <summary>
+        /// Human-readable error code intended for clients.
+        /// </summary>
+        /// <remarks>
+        /// Prefer concise, user-safe wording. Avoid leaking sensitive details.
+        /// Defaults to a generic message.
+        /// </remarks>
+        public required string Code { get; set; } = "ERROR";
+
+        /// <summary>
         /// Human-readable error message intended for clients.
         /// </summary>
         /// <remarks>
         /// Prefer concise, user-safe wording. Avoid leaking sensitive details.
         /// Defaults to a generic message.
         /// </remarks>
-        public string Message { get; set; } = "An unexpected error occurred.";
+        public required string Message { get; set; } = "An unexpected error occurred.";
 
         /// <summary>
         /// Optional developer-oriented exception details (e.g., type, stack trace).

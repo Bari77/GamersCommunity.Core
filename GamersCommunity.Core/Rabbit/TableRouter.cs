@@ -59,7 +59,7 @@ namespace GamersCommunity.Core.Rabbit
                 s => s.TableName.Equals(tableMessage.Table, StringComparison.OrdinalIgnoreCase));
 
             return service == null
-                ? throw new NotFoundException($"No service found for table {tableMessage.Table}")
+                ? throw new NotFoundException("SERVICE_NOT_FOUND", $"No service found for table {tableMessage.Table}")
                 : await service.HandleAsync(tableMessage.Action, tableMessage.Data, tableMessage.Id, ct);
         }
     }

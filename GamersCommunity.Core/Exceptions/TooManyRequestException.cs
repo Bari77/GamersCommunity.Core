@@ -10,6 +10,7 @@ namespace GamersCommunity.Core.Exceptions
     /// consider including a <c>Retry-After</c> header to advise the client when it may retry safely.
     /// Handlers can catch <see cref="IAppException"/> to produce a standardized error response.
     /// </remarks>
+    /// <param name="code">Human-readable code of the validation or input error.</param>
     /// <param name="message">Human-readable explanation of the throttling/quota violation.</param>
     /// <example>
     /// <code>
@@ -19,11 +20,12 @@ namespace GamersCommunity.Core.Exceptions
     /// }
     /// </code>
     /// </example>
-    public class TooManyRequestsException(string message) : Exception(message), IAppException
+    public class TooManyRequestsException(string code, string? message) : Exception(message), IAppException
     {
-        /// <summary>
-        /// Gets the HTTP status code associated with this exception (429).
-        /// </summary>
-        public HttpStatusCode Code => HttpStatusCode.TooManyRequests;
+        /// <inheritdoc/>
+        public string Code => code;
+
+        /// <inheritdoc/>
+        public HttpStatusCode StatusCode => HttpStatusCode.TooManyRequests;
     }
 }

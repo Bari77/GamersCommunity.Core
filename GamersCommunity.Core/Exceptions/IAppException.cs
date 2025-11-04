@@ -12,8 +12,13 @@ namespace GamersCommunity.Core.Exceptions
     public interface IAppException
     {
         /// <summary>
+        /// App exception error code
+        /// </summary>
+        string Code { get; }
+
+        /// <summary>
         /// Gets the HTTP status code that should be returned to the client for this exception.
         /// </summary>
-        HttpStatusCode Code { get; }
+        HttpStatusCode StatusCode { get; }
     }
 }

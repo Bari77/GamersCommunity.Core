@@ -10,6 +10,7 @@ namespace GamersCommunity.Core.Exceptions
     /// or access the requested resource. It maps to <see cref="HttpStatusCode.Forbidden"/>.
     /// Handlers can catch <see cref="IAppException"/> to produce standardized error responses.
     /// </remarks>
+    /// <param name="code">Human-readable code of the validation or input error.</param>
     /// <param name="message">Human-readable explanation of the authorization/permission failure.</param>
     /// <example>
     /// <code>
@@ -17,11 +18,12 @@ namespace GamersCommunity.Core.Exceptions
     ///     throw new ForbiddenException("You are not allowed to delete this post.");
     /// </code>
     /// </example>
-    public class ForbiddenException(string message) : Exception(message), IAppException
+    public class ForbiddenException(string code, string? message) : Exception(message), IAppException
     {
-        /// <summary>
-        /// Gets the HTTP status code associated with this exception (403).
-        /// </summary>
-        public HttpStatusCode Code => HttpStatusCode.Forbidden;
+        /// <inheritdoc/>
+        public string Code => code;
+
+        /// <inheritdoc/>
+        public HttpStatusCode StatusCode => HttpStatusCode.Forbidden;
     }
 }

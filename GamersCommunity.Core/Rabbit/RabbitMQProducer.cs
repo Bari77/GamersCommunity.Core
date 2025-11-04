@@ -45,9 +45,9 @@ namespace GamersCommunity.Core.Rabbit
         public async Task<BasicProperties> SendMessageAsync(string queue, string message, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(queue))
-                throw new BadRequestException("Queue name must not be null or empty.");
+                throw new BadRequestException("QUEUE_NULL", "Queue name must not be null or empty.");
             if (string.IsNullOrWhiteSpace(message))
-                throw new BadRequestException("Message must not be null or empty.");
+                throw new BadRequestException("MESSAGE_NULL", "Message must not be null or empty.");
 
             var ch = await InitRabbitMQ();
 
@@ -95,11 +95,11 @@ namespace GamersCommunity.Core.Rabbit
         public async Task<string> GetResponseAsync(BasicProperties props, CancellationToken ct = default)
         {
             if (props is null)
-                throw new InternalServerErrorException("AMQP properties must not be null.");
+                throw new InternalServerErrorException("AMQP_NULL", "AMQP properties must not be null.");
             if (string.IsNullOrWhiteSpace(props.CorrelationId))
-                throw new InternalServerErrorException("CorrelationId must not be null or empty.");
+                throw new InternalServerErrorException("CORRELATION_NULL", "CorrelationId must not be null or empty.");
             if (string.IsNullOrWhiteSpace(props.ReplyTo))
-                throw new InternalServerErrorException("ReplyTo must not be null or empty.");
+                throw new InternalServerErrorException("REPLY_TO_NULL", "ReplyTo must not be null or empty.");
 
             var ch = await InitRabbitMQ();
             var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -187,7 +187,7 @@ namespace GamersCommunity.Core.Rabbit
                     return await tcs.Task.ConfigureAwait(false);
                 }
 
-                throw new GatewayTimeoutException($"No response received within the timeout period ({opts.Value.Timeout}s).");
+                throw new GatewayTimeoutException("TIMEOUT", $"No response received within the timeout period ({opts.Value.Timeout}s).");
             }
             finally
             {

@@ -11,6 +11,7 @@ namespace GamersCommunity.Core.Exceptions
     /// It maps to <see cref="HttpStatusCode.GatewayTimeout"/>.
     /// Handlers can catch <see cref="IAppException"/> to return a standardized error payload.
     /// </remarks>
+    /// <param name="code">Human-readable code of the validation or input error.</param>
     /// <param name="message">Human-readable description of the timeout condition.</param>
     /// <example>
     /// <code>
@@ -18,11 +19,12 @@ namespace GamersCommunity.Core.Exceptions
     /// throw new GatewayTimeoutException($"No response from worker within {timeoutSeconds}s.");
     /// </code>
     /// </example>
-    public class GatewayTimeoutException(string message) : Exception(message), IAppException
+    public class GatewayTimeoutException(string code, string? message) : Exception(message), IAppException
     {
-        /// <summary>
-        /// Gets the HTTP status code associated with this exception (504).
-        /// </summary>
-        public HttpStatusCode Code => HttpStatusCode.GatewayTimeout;
+        /// <inheritdoc/>
+        public string Code => code;
+
+        /// <inheritdoc/>
+        public HttpStatusCode StatusCode => HttpStatusCode.GatewayTimeout;
     }
 }

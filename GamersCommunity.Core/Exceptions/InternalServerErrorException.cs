@@ -11,6 +11,7 @@ namespace GamersCommunity.Core.Exceptions
     /// It maps to <see cref="HttpStatusCode.InternalServerError"/>.
     /// Prefer not to expose sensitive details to clients; include specifics only in server logs.
     /// </remarks>
+    /// <param name="code">Human-readable code of the validation or input error.</param>
     /// <param name="message">Human-readable summary of the server error.</param>
     /// <example>
     /// <code>
@@ -26,11 +27,12 @@ namespace GamersCommunity.Core.Exceptions
     /// }
     /// </code>
     /// </example>
-    public class InternalServerErrorException(string message) : Exception(message), IAppException
+    public class InternalServerErrorException(string code, string? message) : Exception(message), IAppException
     {
-        /// <summary>
-        /// Gets the HTTP status code associated with this exception (500).
-        /// </summary>
-        public HttpStatusCode Code => HttpStatusCode.InternalServerError;
+        /// <inheritdoc/>
+        public string Code => code;
+
+        /// <inheritdoc/>
+        public HttpStatusCode StatusCode => HttpStatusCode.InternalServerError;
     }
 }

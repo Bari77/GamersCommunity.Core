@@ -92,7 +92,7 @@ namespace GamersCommunity.Core.Rabbit
         public async Task StartListeningAsync(CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(QUEUE))
-                throw new InternalServerErrorException("Queue name must not be null or empty.");
+                throw new InternalServerErrorException("QUEUE_NULL", "Queue name must not be null or empty.");
 
             logger.Information("Starting consumer on host '{Host}' for queue '{Queue}'.", Factory.HostName, QUEUE);
 
@@ -207,7 +207,7 @@ namespace GamersCommunity.Core.Rabbit
         private async Task<IChannel> InitRabbitMQAsync(CancellationToken ct)
         {
             if (string.IsNullOrWhiteSpace(QUEUE))
-                throw new InternalServerErrorException("Queue name must not be null or empty.");
+                throw new InternalServerErrorException("QUEUE_NULL", "Queue name must not be null or empty.");
 
             try
             {

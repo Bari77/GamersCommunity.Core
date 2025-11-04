@@ -10,6 +10,7 @@ namespace GamersCommunity.Core.Exceptions
     /// as opposed to upstream/service timeouts which should map to <c>GatewayTimeoutException</c> (HTTP 504).
     /// Handlers can catch <see cref="IAppException"/> to convert it into a standardized error response.
     /// </remarks>
+    /// <param name="code">Human-readable code of the validation or input error.</param>
     /// <param name="message">Human-readable description of the timeout condition.</param>
     /// <example>
     /// <code>
@@ -18,11 +19,12 @@ namespace GamersCommunity.Core.Exceptions
     ///     throw new RequestTimeoutException("Request body was not received within 30 seconds.");
     /// </code>
     /// </example>
-    public class RequestTimeoutException(string message) : Exception(message), IAppException
+    public class RequestTimeoutException(string code, string? message) : Exception(message), IAppException
     {
-        /// <summary>
-        /// Gets the HTTP status code associated with this exception (408).
-        /// </summary>
-        public HttpStatusCode Code => HttpStatusCode.RequestTimeout;
+        /// <inheritdoc/>
+        public string Code => code;
+
+        /// <inheritdoc/>
+        public HttpStatusCode StatusCode => HttpStatusCode.RequestTimeout;
     }
 }

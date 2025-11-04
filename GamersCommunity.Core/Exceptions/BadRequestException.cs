@@ -10,6 +10,7 @@ namespace GamersCommunity.Core.Exceptions
     /// or otherwise failed preconditions. It maps to <see cref="HttpStatusCode.BadRequest"/>.
     /// Handlers can catch <see cref="IAppException"/> to convert it into a standardized error response.
     /// </remarks>
+    /// <param name="code">Human-readable code of the validation or input error.</param>
     /// <param name="message">Human-readable description of the validation or input error.</param>
     /// <example>
     /// <code>
@@ -17,11 +18,12 @@ namespace GamersCommunity.Core.Exceptions
     ///     throw new BadRequestException("Email is required.");
     /// </code>
     /// </example>
-    public class BadRequestException(string message) : Exception(message), IAppException
+    public class BadRequestException(string code, string? message) : Exception(message), IAppException
     {
-        /// <summary>
-        /// Gets the HTTP status code associated with this exception (400).
-        /// </summary>
-        public HttpStatusCode Code => HttpStatusCode.BadRequest;
+        /// <inheritdoc/>
+        public string Code => code;
+
+        /// <inheritdoc/>
+        public HttpStatusCode StatusCode => HttpStatusCode.BadRequest;
     }
 }
