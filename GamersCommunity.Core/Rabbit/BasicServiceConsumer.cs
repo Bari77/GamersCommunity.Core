@@ -132,8 +132,17 @@ namespace GamersCommunity.Core.Rabbit
                     catch (Exception ex)
                     {
                         logger.Error(ex, "Error while routing message (table={Table}, action={Action}).", parsed.Table, parsed.Action);
-                        await ReplyAsync(channel, props, new RpcEnvelope<object>(false, null,
-                            new RpcError("ROUTING_ERROR", "A server error occurred while processing the request.", ex.Message)), ct);
+
+                        RpcError error;
+                        if (ex is IAppException appException)
+                        {
+                            error = new RpcError(appException.Code, ex.Message, ex.StackTrace);
+                        }
+                        else
+                        {
+                            error = new RpcError("MS_ERROR", ex.Message, ex.StackTrace);
+                        }
+                        await ReplyAsync(channel, props, new RpcEnvelope<object>(false, null, error), ct);
                     }
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
@@ -141,7 +150,7 @@ namespace GamersCommunity.Core.Rabbit
                 {
                     logger.Error(ex, "Unhandled error while processing an incoming message.");
                     await ReplyAsync(channel, ea.BasicProperties, new RpcEnvelope<object>(false, null,
-                        new RpcError("UNHANDLED", "Unhandled error.", ex.Message)), ct);
+                        new RpcError("UNHANDLED", ex.Message, ex.StackTrace)), ct);
                 }
             };
 

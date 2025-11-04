@@ -16,15 +16,11 @@ namespace GamersCommunity.Core.Exceptions
     /// <code>
     /// using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
     /// if (!await reader.ReadAsync(cts.Token))
-    ///     throw new RequestTimeoutException("Request body was not received within 30 seconds.");
+    ///     throw new RequestTimeoutException("REQUEST_TIMEOUT", "Request body was not received within 30 seconds.");
     /// </code>
     /// </example>
-    public class RequestTimeoutException(string code, string? message) : Exception(message), IAppException
+    public class RequestTimeoutException(string code = "REQUEST_TIMEOUT", string? message = "Waiting time for a client request, elapsed on the server side.")
+        : AppException(HttpStatusCode.RequestTimeout, code, message)
     {
-        /// <inheritdoc/>
-        public string Code => code;
-
-        /// <inheritdoc/>
-        public HttpStatusCode StatusCode => HttpStatusCode.RequestTimeout;
     }
 }

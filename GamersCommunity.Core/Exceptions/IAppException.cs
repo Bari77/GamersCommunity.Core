@@ -9,7 +9,7 @@ namespace GamersCommunity.Core.Exceptions
     /// Use this interface on custom exceptions to allow middleware/handlers to detect them and
     /// translate them into consistent HTTP responses without coupling to concrete types.
     /// </remarks>
-    public interface IAppException
+    internal interface IAppException
     {
         /// <summary>
         /// App exception error code

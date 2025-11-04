@@ -15,15 +15,11 @@ namespace GamersCommunity.Core.Exceptions
     /// <example>
     /// <code>
     /// if (!authService.IsTokenValid(token))
-    ///     throw new UnauthorizedException("Invalid or expired access token.");
+    ///     throw new UnauthorizedException("UNAUTHORIZED", "Invalid or expired access token.");
     /// </code>
     /// </example>
-    public class UnauthorizedException(string code, string? message) : Exception(message), IAppException
+    public class UnauthorizedException(string code = "UNAUTHORIZED", string? message = "Authentication is required to access the resource.")
+        : AppException(HttpStatusCode.Unauthorized, code, message)
     {
-        /// <inheritdoc/>
-        public string Code => code;
-
-        /// <inheritdoc/>
-        public HttpStatusCode StatusCode => HttpStatusCode.Unauthorized;
     }
 }

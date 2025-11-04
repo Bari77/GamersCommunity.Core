@@ -15,15 +15,11 @@ namespace GamersCommunity.Core.Exceptions
     /// <code>
     /// var user = await db.Users.FindAsync(id, ct);
     /// if (user is null)
-    ///     throw new NotFoundException($"User with id {id} was not found.");
+    ///     throw new NotFoundException("NOT_FOUND", $"User with id {id} was not found.");
     /// </code>
     /// </example>
-    public class NotFoundException(string code, string? message) : Exception(message), IAppException
+    public class NotFoundException(string code = "NOT_FOUND", string? message = "Resource not found.")
+        : AppException(HttpStatusCode.NotFound, code, message)
     {
-        /// <inheritdoc/>
-        public string Code => code;
-
-        /// <inheritdoc/>
-        public HttpStatusCode StatusCode => HttpStatusCode.NotFound;
     }
 }

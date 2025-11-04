@@ -41,8 +41,6 @@ namespace GamersCommunity.Core.Rabbit
     /// </example>
     public class TableRouter(IEnumerable<ITableService> services)
     {
-        private readonly IEnumerable<ITableService> _services = services;
-
         /// <summary>
         /// Routes the specified <paramref name="tableMessage"/> to the appropriate table service
         /// and returns the service response.
@@ -55,12 +53,11 @@ namespace GamersCommunity.Core.Rabbit
         /// </exception>
         public async Task<string> RouteAsync(RabbitMQTableMessage tableMessage, CancellationToken ct = default)
         {
-            var service = _services.FirstOrDefault(
-                s => s.TableName.Equals(tableMessage.Table, StringComparison.OrdinalIgnoreCase));
+            var service = services.FirstOrDefault(
+                s => s.TableName.Equals(tableMessage.Table, StringComparison.OrdinalIgnoreCase))
+                ?? throw new NotFoundException("SERVICE_NOT_FOUND", $"No service found for table {tableMessage.Table}");
 
-            return service == null
-                ? throw new NotFoundException("SERVICE_NOT_FOUND", $"No service found for table {tableMessage.Table}")
-                : await service.HandleAsync(tableMessage.Action, tableMessage.Data, tableMessage.Id, ct);
+            return await service.HandleAsync(tableMessage.Action, tableMessage.Data, tableMessage.Id, ct);
         }
     }
 }

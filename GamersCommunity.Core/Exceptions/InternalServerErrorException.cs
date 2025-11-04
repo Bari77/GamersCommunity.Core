@@ -23,16 +23,12 @@ namespace GamersCommunity.Core.Exceptions
     /// {
     ///     // Log the full exception internally, return a generic 500 to the client.
     ///     logger.LogError(ex, "Unexpected error while saving entity {Id}", entity.Id);
-    ///     throw new InternalServerErrorException("An unexpected error occurred while processing your request.");
+    ///     throw new InternalServerErrorException("INTERNAL_SERVER_ERROR", "An unexpected error occurred while processing your request.");
     /// }
     /// </code>
     /// </example>
-    public class InternalServerErrorException(string code, string? message) : Exception(message), IAppException
+    public class InternalServerErrorException(string code = "INTERNAL_SERVER_ERROR", string? message = "Internal Server Error.")
+        : AppException(HttpStatusCode.InternalServerError, code, message)
     {
-        /// <inheritdoc/>
-        public string Code => code;
-
-        /// <inheritdoc/>
-        public HttpStatusCode StatusCode => HttpStatusCode.InternalServerError;
     }
 }

@@ -15,15 +15,11 @@ namespace GamersCommunity.Core.Exceptions
     /// <example>
     /// <code>
     /// if (!user.HasPermission(Permissions.DeletePost))
-    ///     throw new ForbiddenException("You are not allowed to delete this post.");
+    ///     throw new ForbiddenException("FORBIDDEN", "You are not allowed to delete this post.");
     /// </code>
     /// </example>
-    public class ForbiddenException(string code, string? message) : Exception(message), IAppException
+    public class ForbiddenException(string code = "FORBIDDEN", string? message = "The server understood the request but refuses to execute it.")
+        : AppException(HttpStatusCode.Forbidden, code, message)
     {
-        /// <inheritdoc/>
-        public string Code => code;
-
-        /// <inheritdoc/>
-        public HttpStatusCode StatusCode => HttpStatusCode.Forbidden;
     }
 }

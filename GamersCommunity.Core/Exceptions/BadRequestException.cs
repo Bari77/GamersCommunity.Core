@@ -15,15 +15,11 @@ namespace GamersCommunity.Core.Exceptions
     /// <example>
     /// <code>
     /// if (string.IsNullOrWhiteSpace(dto.Email))
-    ///     throw new BadRequestException("Email is required.");
+    ///     throw new BadRequestException("REQUIRED", "Email is required.");
     /// </code>
     /// </example>
-    public class BadRequestException(string code, string? message) : Exception(message), IAppException
+    public class BadRequestException(string code = "BAD_REQUEST", string? message = "The query syntax is incorrect.")
+        : AppException(HttpStatusCode.BadRequest, code, message)
     {
-        /// <inheritdoc/>
-        public string Code => code;
-
-        /// <inheritdoc/>
-        public HttpStatusCode StatusCode => HttpStatusCode.BadRequest;
     }
 }

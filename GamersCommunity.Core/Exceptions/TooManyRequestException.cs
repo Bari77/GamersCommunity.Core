@@ -16,16 +16,12 @@ namespace GamersCommunity.Core.Exceptions
     /// <code>
     /// if (!rateLimiter.AllowRequest(userId))
     /// {
-    ///     throw new TooManyRequestsException("Request rate limit exceeded. Please try again later.");
+    ///     throw new TooManyRequestsException("TOO_MANY_REQUEST", "Request rate limit exceeded. Please try again later.");
     /// }
     /// </code>
     /// </example>
-    public class TooManyRequestsException(string code, string? message) : Exception(message), IAppException
+    public class TooManyRequestsException(string code = "TOO_MANY_REQUEST", string? message = "The client submitted too many requests within a given timeframe.")
+        : AppException(HttpStatusCode.TooManyRequests, code, message)
     {
-        /// <inheritdoc/>
-        public string Code => code;
-
-        /// <inheritdoc/>
-        public HttpStatusCode StatusCode => HttpStatusCode.TooManyRequests;
     }
 }

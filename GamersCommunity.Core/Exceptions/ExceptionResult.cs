@@ -34,7 +34,7 @@
         /// Prefer concise, user-safe wording. Avoid leaking sensitive details.
         /// Defaults to a generic message.
         /// </remarks>
-        public required string Code { get; set; } = "ERROR";
+        public string Code { get; set; } = "ERROR";
 
         /// <summary>
         /// Human-readable error message intended for clients.
@@ -43,7 +43,7 @@
         /// Prefer concise, user-safe wording. Avoid leaking sensitive details.
         /// Defaults to a generic message.
         /// </remarks>
-        public required string Message { get; set; } = "An unexpected error occurred.";
+        public string Message { get; set; } = "An unexpected error occurred.";
 
         /// <summary>
         /// Optional developer-oriented exception details (e.g., type, stack trace).

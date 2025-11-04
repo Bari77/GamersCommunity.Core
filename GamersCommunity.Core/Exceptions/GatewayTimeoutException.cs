@@ -16,15 +16,11 @@ namespace GamersCommunity.Core.Exceptions
     /// <example>
     /// <code>
     /// // After waiting for an RPC response beyond the allowed duration:
-    /// throw new GatewayTimeoutException($"No response from worker within {timeoutSeconds}s.");
+    /// throw new GatewayTimeoutException("GATEWAY_TIMEOUT", $"No response from worker within {timeoutSeconds}s.");
     /// </code>
     /// </example>
-    public class GatewayTimeoutException(string code, string? message) : Exception(message), IAppException
+    public class GatewayTimeoutException(string code = "GATEWAY_TIMEOUT", string? message = "The waiting time for a response from a server to an intermediate server has elapsed.")
+        : AppException(HttpStatusCode.GatewayTimeout, code, message)
     {
-        /// <inheritdoc/>
-        public string Code => code;
-
-        /// <inheritdoc/>
-        public HttpStatusCode StatusCode => HttpStatusCode.GatewayTimeout;
     }
 }
