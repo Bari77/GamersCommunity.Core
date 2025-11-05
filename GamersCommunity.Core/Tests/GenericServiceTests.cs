@@ -26,8 +26,7 @@ namespace GamersCommunity.Core.Tests
     /// <typeparam name="TContext">Concrete <see cref="DbContext"/> used by the service under test.</typeparam>
     /// <typeparam name="TService">Concrete <see cref="GenericTableService{TContext, TEntity}"/> being tested.</typeparam>
     /// <typeparam name="TEntity">Entity type that implements <see cref="IKeyTable"/>.</typeparam>
-    /// <param name="service">Service instance under test.</param>
-    public abstract class GenericServiceTests<TContext, TService, TEntity>(TService service)
+    public abstract class GenericTableServiceTests<TContext, TService, TEntity>
         where TService : GenericTableService<TContext, TEntity>
         where TContext : DbContext
         where TEntity : class, IKeyTable
@@ -49,11 +48,27 @@ namespace GamersCommunity.Core.Tests
         protected abstract TEntity GetNewEntity();
 
         /// <summary>
+        /// Creates and returns a fresh instance of the service under test, using a new isolated in-memory database.
+        /// </summary>
+        /// <remarks>
+        /// The implementation should:
+        /// <list type="number">
+        /// <item>Create a <see cref="DbContextOptions{TContext}"/> using <see cref="UseInMemoryDatabase"/> with a GUID name.</item>
+        /// <item>Seed the fake data via <see cref="GetFakeData"/>.</item>
+        /// <item>Return a new instance of the service that uses this context.</item>
+        /// </list>
+        /// </remarks>
+        protected abstract TService CreateService();
+
+        /// <summary>
         /// Verifies that an unknown action routed to the service results in a <see cref="BadRequestException"/>.
         /// </summary>
         [Fact]
         public async Task Action_Handle_Unknown_Action()
         {
+            // Arrange
+            var service = CreateService();
+
             // Assert
             await Assert.ThrowsAsync<InternalServerErrorException>(() => service.HandleAsync(new BusMessage()
             {
@@ -77,6 +92,9 @@ namespace GamersCommunity.Core.Tests
         [InlineData("Id mandatory", "Delete")]
         public async Task Action_Handle_Throw_Invalid_Data(string exception, string action, string? data = null, int? id = null)
         {
+            // Arrange
+            var service = CreateService();
+
             // Assert
             var ex = await Assert.ThrowsAsync<BadRequestException>(() => service.HandleAsync(new BusMessage()
             {
@@ -93,6 +111,9 @@ namespace GamersCommunity.Core.Tests
         [Fact]
         public async Task Create_Test()
         {
+            // Arrange
+            var service = CreateService();
+
             // Act
             var result = await service.HandleAsync(new BusMessage()
             {
@@ -116,6 +137,9 @@ namespace GamersCommunity.Core.Tests
         [InlineData(1, 1)]
         public async Task Get_By_Id(int id, int? expected)
         {
+            // Arrange
+            var service = CreateService();
+
             // Act
             var result = await service.HandleAsync(new BusMessage()
             {
@@ -134,6 +158,9 @@ namespace GamersCommunity.Core.Tests
         [Fact]
         public async Task List_All()
         {
+            // Arrange
+            var service = CreateService();
+
             // Act
             var result = await service.HandleAsync(new BusMessage()
             {
