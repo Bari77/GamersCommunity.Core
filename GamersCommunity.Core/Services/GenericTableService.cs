@@ -33,7 +33,7 @@ namespace GamersCommunity.Core.Services
         where TEntity : class, IKeyTable
     {
         /// <inheritdoc/>
-        BusServiceTypeEnum IBusService.Type => BusServiceTypeEnum.TABLE;
+        BusServiceTypeEnum IBusService.Type => BusServiceTypeEnum.DATA;
         /// <inheritdoc/>
         public string Resource => tableName;
         /// <summary>
