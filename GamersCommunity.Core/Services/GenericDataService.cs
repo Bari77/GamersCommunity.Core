@@ -28,7 +28,7 @@ namespace GamersCommunity.Core.Services
     /// </typeparam>
     /// <param name="context">Database context instance used for CRUD operations.</param>
     /// <param name="tableName">Logical table name advertised to the router.</param>
-    public class GenericTableService<TContext, TEntity>(TContext context, string tableName) : IBusService
+    public class GenericDataService<TContext, TEntity>(TContext context, string tableName) : IBusService
         where TContext : DbContext
         where TEntity : class, IKeyTable
     {

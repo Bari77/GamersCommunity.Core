@@ -10,12 +10,12 @@ using Xunit;
 namespace GamersCommunity.Core.Tests
 {
     /// <summary>
-    /// Generic xUnit test base for <see cref="GenericTableService{TContext, TEntity}"/> implementations.
+    /// Generic xUnit test base for <see cref="GenericDataService{TContext, TEntity}"/> implementations.
     /// </summary>
     /// <remarks>
     /// <para>
     /// This abstract fixture provides a common test suite to validate the core CRUD behavior exposed through
-    /// <see cref="ITableService.HandleAsync(string, string?, int?, System.Threading.CancellationToken)"/>.
+    /// <see cref="TService.HandleAsync(string, string?, int?, CancellationToken)"/>.
     /// Concrete test classes should supply a configured service instance and minimal test data factories.
     /// </para>
     /// <para>
@@ -24,10 +24,10 @@ namespace GamersCommunity.Core.Tests
     /// </para>
     /// </remarks>
     /// <typeparam name="TContext">Concrete <see cref="DbContext"/> used by the service under test.</typeparam>
-    /// <typeparam name="TService">Concrete <see cref="GenericTableService{TContext, TEntity}"/> being tested.</typeparam>
+    /// <typeparam name="TService">Concrete <see cref="GenericDataService{TContext, TEntity}"/> being tested.</typeparam>
     /// <typeparam name="TEntity">Entity type that implements <see cref="IKeyTable"/>.</typeparam>
-    public abstract class GenericTableServiceTests<TContext, TService, TEntity>
-        where TService : GenericTableService<TContext, TEntity>
+    public abstract class GenericDataServiceTests<TContext, TService, TEntity>
+        where TService : GenericDataService<TContext, TEntity>
         where TContext : DbContext
         where TEntity : class, IKeyTable
     {
@@ -72,6 +72,7 @@ namespace GamersCommunity.Core.Tests
             // Assert
             await Assert.ThrowsAsync<InternalServerErrorException>(() => service.HandleAsync(new BusMessage()
             {
+                Type = Enums.BusServiceTypeEnum.DATA,
                 Action = "UnknownAction",
                 Resource = string.Empty
             }));
@@ -98,6 +99,7 @@ namespace GamersCommunity.Core.Tests
             // Assert
             var ex = await Assert.ThrowsAsync<BadRequestException>(() => service.HandleAsync(new BusMessage()
             {
+                Type = Enums.BusServiceTypeEnum.DATA,
                 Action = action,
                 Data = data,
                 Id = id
@@ -117,6 +119,7 @@ namespace GamersCommunity.Core.Tests
             // Act
             var result = await service.HandleAsync(new BusMessage()
             {
+                Type = Enums.BusServiceTypeEnum.DATA,
                 Action = "Create",
                 Data = JsonSafe.Serialize(GetNewEntity())
             });
@@ -143,6 +146,7 @@ namespace GamersCommunity.Core.Tests
             // Act
             var result = await service.HandleAsync(new BusMessage()
             {
+                Type = Enums.BusServiceTypeEnum.DATA,
                 Action = "Get",
                 Id = id,
             });
@@ -164,6 +168,7 @@ namespace GamersCommunity.Core.Tests
             // Act
             var result = await service.HandleAsync(new BusMessage()
             {
+                Type = Enums.BusServiceTypeEnum.DATA,
                 Action = "List",
                 Resource = string.Empty
             });
