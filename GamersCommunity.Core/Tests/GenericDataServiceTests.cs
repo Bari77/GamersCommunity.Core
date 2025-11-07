@@ -61,6 +61,11 @@ namespace GamersCommunity.Core.Tests
         protected abstract TService CreateService();
 
         /// <summary>
+        /// Creates and returns a fresh instance of the db context under test, using a new isolated in-memory database.
+        /// </summary>
+        protected abstract TContext CreateContext();
+
+        /// <summary>
         /// Verifies that an unknown action routed to the service results in a <see cref="BadRequestException"/>.
         /// </summary>
         [Fact]
