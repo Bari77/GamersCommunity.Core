@@ -32,20 +32,20 @@ namespace GamersCommunity.Core.Tests
         where TEntity : class, IKeyTable
     {
         /// <summary>
-        /// Provides a deterministic set of entities representing the initial dataset for assertions.
-        /// </summary>
-        /// <remarks>
-        /// Used by <see cref="List_All"/> (and potentially by concrete tests) to validate counts and shapes.
-        /// </remarks>
-        protected abstract List<TEntity> GetFakeData();
-
-        /// <summary>
         /// Creates a new entity instance suitable for a successful <c>Create</c> action.
         /// </summary>
         /// <remarks>
         /// The returned instance should satisfy validation rules expected by the service under test.
         /// </remarks>
         protected abstract TEntity GetNewEntity();
+
+        /// <summary>
+        /// Provides a deterministic set of entities representing the initial dataset for assertions.
+        /// </summary>
+        /// <remarks>
+        /// Used by <see cref="List_All"/> (and potentially by concrete tests) to validate counts and shapes.
+        /// </remarks>
+        protected abstract List<TEntity> GetFakeData();
 
         /// <summary>
         /// Creates and returns a fresh instance of the service under test, using a new isolated in-memory database.
@@ -61,9 +61,44 @@ namespace GamersCommunity.Core.Tests
         protected abstract TService CreateService();
 
         /// <summary>
-        /// Creates and returns a fresh instance of the db context under test, using a new isolated in-memory database.
+        /// Creates a new context seeded with base data and any additional fake entities.
         /// </summary>
-        protected abstract TContext CreateContext();
+        protected virtual TContext CreateContext()
+        {
+            var ctx = ResolveFakeDataset().CreateFakeContext();
+
+            var extraData = GetFakeData();
+            if (extraData?.Count == 0)
+            {
+                var set = ctx.Set<TEntity>();
+                set.AddRange(extraData);
+                ctx.SaveChanges();
+            }
+
+            return ctx;
+        }
+
+        /// <summary>
+        /// Resolve the fake dataset
+        /// </summary>
+        /// <returns>FakeDataset class</returns>
+        /// <exception cref="InvalidOperationException">If no IFakeDataset implementation found</exception>
+        private IFakeDataset<TContext> ResolveFakeDataset()
+        {
+            var targetInterface = typeof(IFakeDataset<TContext>);
+            var testAssembly = GetType().Assembly;
+
+            var implType = testAssembly
+                .GetTypes()
+                .FirstOrDefault(t => !t.IsAbstract && !t.IsInterface && targetInterface.IsAssignableFrom(t));
+
+            if (implType is null)
+                throw new InvalidOperationException(
+                    $"No implementation of {targetInterface.Name} was found in {testAssembly.GetName().Name}. " +
+                    $"Ensure your FakeDataset class is public and in the test project.");
+
+            return (IFakeDataset<TContext>)Activator.CreateInstance(implType)!;
+        }
 
         /// <summary>
         /// Verifies that an unknown action routed to the service results in a <see cref="BadRequestException"/>.
