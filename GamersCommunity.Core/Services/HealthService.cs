@@ -4,6 +4,7 @@ using GamersCommunity.Core.Models;
 using GamersCommunity.Core.Rabbit;
 using GamersCommunity.Core.Serialization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Serilog;
 
 namespace GamersCommunity.Core.Services
@@ -40,26 +41,26 @@ namespace GamersCommunity.Core.Services
         /// </summary>
         /// <param name="ct">Cancellation token.</param>
         /// <returns>The created entity identifier.</returns>
-        protected async Task<HealthStatus> CheckAsync(CancellationToken ct = default)
+        protected async Task<MicroserviceHealth> CheckAsync(CancellationToken ct = default)
         {
             try
             {
                 var dbStatus = await dbContext.Database.CanConnectAsync(ct)
-                    ? "Healthy"
-                    : "Degraded";
+                    ? HealthStatus.Healthy
+                    : HealthStatus.Degraded;
 
-                return new HealthStatus()
+                return new MicroserviceHealth()
                 {
-                    Status = "Healthy",
+                    Status = HealthStatus.Healthy,
                     Db = dbStatus,
                 };
             }
             catch (Exception)
             {
-                return new HealthStatus()
+                return new MicroserviceHealth()
                 {
-                    Status = "Unhealthy",
-                    Db = "Unhealthy",
+                    Status = HealthStatus.Unhealthy,
+                    Db = HealthStatus.Unhealthy,
                 };
             }
         }
