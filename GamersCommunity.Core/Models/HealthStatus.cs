@@ -7,12 +7,6 @@
     public class HealthStatus
     {
         /// <summary>
-        /// Gets or sets the name of the microservice reporting its health status.
-        /// </summary>
-        /// <example>Users</example>
-        public required string Service { get; set; }
-
-        /// <summary>
         /// Gets or sets the overall operational status of the microservice.
         /// Typical values are <c>"Healthy"</c>, <c>"Degraded"</c>, or <c>"Unhealthy"</c>.
         /// </summary>
@@ -22,6 +16,7 @@
         /// <summary>
         /// Gets or sets the health status of the database connection
         /// for this microservice, including potential error messages if any.
+        /// Typical values are <c>"Healthy"</c>, <c>"Degraded"</c>, or <c>"Unhealthy"</c>.
         /// </summary>
         /// <example>Healthy</example>
         public required string Db { get; set; }
