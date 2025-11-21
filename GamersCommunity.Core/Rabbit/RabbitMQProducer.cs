@@ -202,11 +202,17 @@ namespace GamersCommunity.Core.Rabbit
 
                 try
                 {
-                    await ch.QueueDeleteAsync(props.ReplyTo!, ifUnused: false, ifEmpty: false, cancellationToken: ct);
+                    await ch.QueueDeleteAsync(props.ReplyTo!, false, false, ct);
+                }
+                catch (TaskCanceledException)
+                {
+                    // Expected when Request Timeout occurs → no log
                 }
                 catch (Exception delEx)
                 {
-                    logger.Debug(delEx, "Failed to delete temporary reply queue '{ReplyTo}'.", props.ReplyTo);
+                    logger.Debug(delEx,
+                        "Failed to delete temporary reply queue '{ReplyTo}'.",
+                        props.ReplyTo);
                 }
             }
         }
