@@ -3,7 +3,7 @@
   <PropertyGroup>
 	<TargetFramework>net10.0</TargetFramework>
 	<PackageId>GamersCommunity.Core.Logging</PackageId>
-	<Version>2.0.0</Version>
+	<Version>3.0.0</Version>
 	<Authors>Bari</Authors>
 	<Description>GamersCommunity Core logging package</Description>
 	<ImplicitUsings>enable</ImplicitUsings>
@@ -12,6 +12,7 @@
 	<PackageLicenseFile>LICENSE</PackageLicenseFile>
 	<PackageReadmeFile>README.md</PackageReadmeFile>
 	<RepositoryUrl>https://github.com/Bari77/GamersCommunity.Core</RepositoryUrl>
+	<PackageIcon>logo.png</PackageIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,7 +20,7 @@
 	  <Pack>True</Pack>
 	  <PackagePath>\</PackagePath>
 	</None>
-	<None Include="..\README.md">
+	<None Include="..\logo.png">
 	  <Pack>True</Pack>
 	  <PackagePath>\</PackagePath>
 	</None>
@@ -31,6 +32,13 @@
     <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageReference Include="Serilog.Sinks.Seq" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
   </ItemGroup>
 
 </Project>

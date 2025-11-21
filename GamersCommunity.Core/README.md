@@ -25,8 +25,8 @@ The library is designed to be **lightweight**, **extensible**, and **easy to int
 ## 🚀 Getting Started
 
 ### Requirements
-- **.NET 9.0** (recommended) — .NET 8.0 is usually fine if your project targets it.
-- Visual Studio 2022 / Rider / VS Code
+- **.NET 10.0**
+- Visual Studio 2022 / VS 2026 / Rider / VS Code
 
 ### Installation
 Install from your NuGet feed:
