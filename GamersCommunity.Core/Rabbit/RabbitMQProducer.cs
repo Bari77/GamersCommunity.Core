@@ -5,6 +5,7 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using Serilog;
 using System.Text;
+using System.Threading.Channels;
 
 namespace GamersCommunity.Core.Rabbit
 {
@@ -31,7 +32,6 @@ namespace GamersCommunity.Core.Rabbit
         };
 
         private IConnection? Connection;
-        private IChannel? Channel;
 
         /// <summary>
         /// Publishes a message to the given queue using a fresh correlation id and a server-named reply queue.
@@ -49,7 +49,8 @@ namespace GamersCommunity.Core.Rabbit
             if (string.IsNullOrWhiteSpace(message))
                 throw new BadRequestException("MESSAGE_NULL", "Message must not be null or empty.");
 
-            var ch = await InitRabbitMQ();
+            var conn = await EnsureConnectionAsync(ct);
+            await using var ch = await conn.CreateChannelAsync(cancellationToken: ct);
 
             var body = Encoding.UTF8.GetBytes(message);
 
@@ -101,7 +102,8 @@ namespace GamersCommunity.Core.Rabbit
             if (string.IsNullOrWhiteSpace(props.ReplyTo))
                 throw new InternalServerErrorException("REPLY_TO_NULL", "ReplyTo must not be null or empty.");
 
-            var ch = await InitRabbitMQ();
+            var conn = await EnsureConnectionAsync(ct);
+            await using var ch = await conn.CreateChannelAsync(cancellationToken: ct);
             var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 
             string consumerTag = string.Empty;
@@ -194,7 +196,7 @@ namespace GamersCommunity.Core.Rabbit
                 try
                 {
                     if (!string.IsNullOrWhiteSpace(consumerTag))
-                        await Channel!.BasicCancelAsync(consumerTag, cancellationToken: ct);
+                        await ch!.BasicCancelAsync(consumerTag, cancellationToken: ct);
                 }
                 catch
                 {
@@ -221,31 +223,18 @@ namespace GamersCommunity.Core.Rabbit
         /// Ensures there is an open RabbitMQ connection and channel, creating them if necessary.
         /// Logs and rethrows fatal errors to allow the host/container to fail fast.
         /// </summary>
+        /// <param name="ct">Cancellation token.</param>
         /// <returns>An open AMQP channel.</returns>
-        private async Task<IChannel> InitRabbitMQ()
+        private async Task<IConnection> EnsureConnectionAsync(CancellationToken ct = default)
         {
-            try
+            if (Connection is null || !Connection.IsOpen)
             {
-                if (Connection is null || !Connection.IsOpen)
-                {
-                    logger.Information("Opening RabbitMQ connection to {Host}...", Factory.HostName);
-                    Connection = await Factory.CreateConnectionAsync();
-                    logger.Information("RabbitMQ connection established.");
-                }
-
-                if (Channel is null || !Channel.IsOpen)
-                {
-                    Channel = await Connection.CreateChannelAsync();
-                    logger.Information("RabbitMQ channel created.");
-                }
-
-                return Channel;
+                logger.Information("Opening RabbitMQ connection to {Host}...", Factory.HostName);
+                Connection = await Factory.CreateConnectionAsync(ct);
+                logger.Information("RabbitMQ connection established.");
             }
-            catch (Exception ex)
-            {
-                logger.Fatal(ex, "Failed to initialize RabbitMQ (host={Host}).", Factory.HostName);
-                throw;
-            }
+
+            return Connection;
         }
     }
 }
