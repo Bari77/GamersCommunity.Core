@@ -1,10 +1,17 @@
-﻿namespace GamersCommunity.Core.Logging
+﻿using Serilog.Events;
+
+namespace GamersCommunity.Core.Logging
 {
     /// <summary>
     /// Logger settings class
     /// </summary>
     public class LoggerSettings
     {
+        /// <summary>
+        /// Minimum log level
+        /// </summary>
+        public LogEventLevel MinimumLevel { get; set; } = LogEventLevel.Information;
+
         /// <summary>
         /// File path
         /// </summary>
