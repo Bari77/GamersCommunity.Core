@@ -174,7 +174,7 @@ namespace GamersCommunity.Core.Logging
             Serilog.Debugging.SelfLog.Enable(msg => File.AppendAllText("serilog_errors.txt", msg + "\n"));
 
             var loggerConfiguration = new LoggerConfiguration()
-                .MinimumLevel.Is(config.MinimumLevel)
+                .MinimumLevel.Is(config.MinimumLevel.Global)
                 .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
                 .Enrich.FromLogContext()
                 .Enrich.WithProperty("Application", applicationName)
@@ -182,7 +182,7 @@ namespace GamersCommunity.Core.Logging
                 .WriteTo.Logger(lc => lc
                     .Filter.ByExcluding(log => log.MessageTemplate.Text.StartsWith("HTTP"))
                     .WriteTo.Console(
-                        restrictedToMinimumLevel: LogEventLevel.Verbose,
+                        restrictedToMinimumLevel: config.MinimumLevel.ConsoleNotHttp,
                         outputTemplate: DEFAULT_TEMPLATE,
                         theme: THEME_SERILOG
                     )
@@ -190,17 +190,17 @@ namespace GamersCommunity.Core.Logging
                 .WriteTo.Logger(lc => lc
                     .Filter.ByIncludingOnly(log => log.MessageTemplate.Text.StartsWith("HTTP"))
                     .WriteTo.Console(
-                        restrictedToMinimumLevel: LogEventLevel.Verbose,
+                        restrictedToMinimumLevel: config.MinimumLevel.ConsoleHttp,
                         outputTemplate: HTTP_TEMPLATE,
                         theme: THEME_SERILOG
                     )
                 );
 
-            if (environment.IsProduction())
+            if (!string.IsNullOrEmpty(config.FilePath))
             {
                 loggerConfiguration.WriteTo.File(
                     path: config.FilePath ?? "logs/log-.txt",
-                    restrictedToMinimumLevel: LogEventLevel.Verbose,
+                    restrictedToMinimumLevel: config.MinimumLevel.File,
                     outputTemplate: DEFAULT_TEMPLATE,
                     rollingInterval: RollingInterval.Day,
                     retainedFileCountLimit: 7);
@@ -211,7 +211,7 @@ namespace GamersCommunity.Core.Logging
             {
                 loggerConfiguration.WriteTo.Seq(
                     serverUrl: config.SeqPath,
-                    restrictedToMinimumLevel: LogEventLevel.Verbose,
+                    restrictedToMinimumLevel: config.MinimumLevel.Seq,
                     apiKey: config.SeqKey);
             }
 
