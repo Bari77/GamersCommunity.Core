@@ -32,12 +32,16 @@ jobs:
             GamersCommunity.Core/GamersCommunity.Core.csproj \
             GamersCommunity.Core.Logging/GamersCommunity.Core.Logging.csproj
 
-      - name: Restore and pack
+      - name: Restore, build, pack
         run: |
           mkdir -p artifacts
           dotnet restore GamersCommunity.Core.sln
-          dotnet pack GamersCommunity.Core/GamersCommunity.Core.csproj -c Release -o artifacts --no-restore
-          dotnet pack GamersCommunity.Core.Logging/GamersCommunity.Core.Logging.csproj -c Release -o artifacts --no-restore
+          dotnet build GamersCommunity.Core.sln -c Release --no-restore
+          # GeneratePackageOnBuild can race with pack; pack from built outputs only
+          dotnet pack GamersCommunity.Core/GamersCommunity.Core.csproj -c Release -o artifacts --no-build \
+            -p:GeneratePackageOnBuild=false
+          dotnet pack GamersCommunity.Core.Logging/GamersCommunity.Core.Logging.csproj -c Release -o artifacts --no-build \
+            -p:GeneratePackageOnBuild=false
 
       - name: Push to GitHub Packages
         run: |
