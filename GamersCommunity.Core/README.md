@@ -29,10 +29,18 @@ The library is designed to be **lightweight**, **extensible**, and **easy to int
 - Visual Studio 2022 / VS 2026 / Rider / VS Code
 
 ### Installation
-Install from your NuGet feed:
+Packages are published to **GitHub Packages** on each version tag (see [docs/RELEASE.md](../docs/RELEASE.md)).
 
 ```bash
 dotnet add package GamersCommunity.Core
+dotnet add package GamersCommunity.Core.Logging
+```
+
+Publish a release (maintainers):
+
+```bash
+git tag v9.5.0
+git push origin v9.5.0
 ```
 
 ---

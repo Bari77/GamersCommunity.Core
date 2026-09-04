@@ -31,5 +31,7 @@ namespace GamersCommunity.Core.Rabbit
         /// Optional identifier for the target resource.
         /// </summary>
         public int? Id { get; init; }
+
+        public CallerIdentity? Caller { get; init; }
     }
 }
