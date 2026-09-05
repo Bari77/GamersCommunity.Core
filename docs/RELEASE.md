@@ -1,39 +1,39 @@
-# Publication (tags → Release + packages)
+# Publishing (tags → Release + packages)
 
-## Principe
+## Principle
 
-Un **push de tag** `vX.Y.Z` déclenche le workflow `.github/workflows/release.yml` qui :
+Pushing a `vX.Y.Z` tag runs `.github/workflows/release.yml`, which:
 
-1. Aligne la version des packages NuGet sur le tag
-2. Pack + push vers **GitHub Packages** (`nuget.pkg.github.com/Bari77`)
-3. Crée une **GitHub Release** avec les `.nupkg` en pièces jointes
+1. Aligns NuGet package versions with the tag
+2. Packs + pushes to **GitHub Packages** (`nuget.pkg.github.com/Bari77`)
+3. Creates a **GitHub Release** with `.nupkg` attachments
 
-Les deux packages (`GamersCommunity.Core` et `GamersCommunity.Core.Logging`) **partagent la même version** que le tag (ex. `v9.5.0` → `9.5.0`).
+Both packages (`GamersCommunity.Core` and `GamersCommunity.Core.Logging`) **share the same version** as the tag (e.g. `v9.5.0` → `9.5.0`).
 
-## Publier
+## Publish
 
 ```bash
 git tag v9.5.0
 git push origin v9.5.0
 ```
 
-## Consommer (équipes jeu)
+## Consume (game teams)
 
-`nuget.config` (déjà dans les repos jeu) pointe vers GitHub Packages. Authentification locale (une fois) :
+`nuget.config` (already in game repos) points at GitHub Packages. Local auth (once):
 
 ```powershell
-# PAT GitHub avec scope read:packages (et write:packages pour les leads)
+# GitHub PAT with read:packages (and write:packages for leads)
 dotnet nuget update source github `
-  --username VOTRE_USER `
+  --username YOUR_USER `
   --password ghp_xxx `
   --store-password-in-clear-text
 ```
 
-Puis dans le `.csproj` :
+Then in the `.csproj`:
 
 ```xml
 <PackageReference Include="GamersCommunity.Core" Version="9.5.0" />
 <PackageReference Include="GamersCommunity.Core.Logging" Version="9.5.0" />
 ```
 
-Aucun checkout du repo Core n’est requis pour les équipes jeu.
+No Core repo checkout is required for game teams.
