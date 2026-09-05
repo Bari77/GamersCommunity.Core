@@ -55,33 +55,24 @@ namespace GamersCommunity.Core.Services
                     return JsonSafe.Serialize(await CreateAsync(create, ct));
 
                 case "GET":
-                    if (!message.Id.HasValue)
-                    {
-                        throw new BadRequestException("ID_MANDATORY", "Id mandatory");
-                    }
-                    return JsonSafe.Serialize(await GetAsync(message.Id.Value, ct));
+                    return JsonSafe.Serialize(await ResolveAsync(message, ct));
 
                 case "LIST":
                     return JsonSafe.Serialize(await ListAsync(ct));
 
                 case "UPDATE":
-                    if (!message.Id.HasValue)
-                    {
-                        throw new BadRequestException("ID_MANDATORY", "Id mandatory");
-                    }
                     if (string.IsNullOrEmpty(message.Data))
                     {
                         throw new BadRequestException("DATA_MANDATORY", "Data mandatory");
                     }
                     var update = ConsumerParamParser.ToObject<TEntity>(message.Data);
-                    return JsonSafe.Serialize(await UpdateAsync(message.Id.Value, update, ct));
+                    var updateTarget = await ResolveAsync(message, ct);
+                    update.Id = updateTarget.Id;
+                    return JsonSafe.Serialize(await UpdateAsync(updateTarget.Id, update, ct));
 
                 case "DELETE":
-                    if (!message.Id.HasValue)
-                    {
-                        throw new BadRequestException("ID_MANDATORY", "Id mandatory");
-                    }
-                    return JsonSafe.Serialize(await DeleteAsync(message.Id.Value, ct));
+                    var deleteTarget = await ResolveAsync(message, ct);
+                    return JsonSafe.Serialize(await DeleteAsync(deleteTarget.Id, ct));
 
                 default:
                     Log.Warning($"Action {message.Action} not implemented");
@@ -112,6 +103,30 @@ namespace GamersCommunity.Core.Services
         protected async Task<TEntity> GetAsync(int id, CancellationToken ct = default)
         {
             return await Context.Set<TEntity>().AsNoTracking().FirstOrDefaultAsync(w => w.Id == id, ct)
+                   ?? throw new NotFoundException("NOT_FOUND", "Cannot find ressource");
+        }
+
+        /// <summary>
+        /// Resolves the target entity from <see cref="BusMessage.PublicId"/> or <see cref="BusMessage.Id"/>.
+        /// </summary>
+        protected async Task<TEntity> ResolveAsync(BusMessage message, CancellationToken ct = default)
+        {
+            if (message.PublicId is Guid publicId)
+                return await GetByPublicIdAsync(publicId, ct);
+
+            if (message.Id is int id)
+                return await GetAsync(id, ct);
+
+            throw new BadRequestException("ID_MANDATORY", "Id mandatory");
+        }
+
+        /// <summary>
+        /// Retrieves a single entity by its public identifier.
+        /// </summary>
+        protected async Task<TEntity> GetByPublicIdAsync(Guid publicId, CancellationToken ct = default)
+        {
+            return await Context.Set<TEntity>().AsNoTracking()
+                       .FirstOrDefaultAsync(e => EF.Property<Guid>(e, "PublicId") == publicId, ct)
                    ?? throw new NotFoundException("NOT_FOUND", "Cannot find ressource");
         }
 

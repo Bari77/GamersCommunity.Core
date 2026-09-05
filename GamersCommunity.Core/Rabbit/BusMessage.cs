@@ -28,9 +28,14 @@ namespace GamersCommunity.Core.Rabbit
         public string? Data { get; init; }
 
         /// <summary>
-        /// Optional identifier for the target resource.
+        /// Optional internal identifier for the target resource.
         /// </summary>
         public int? Id { get; init; }
+
+        /// <summary>
+        /// Optional public identifier for the target resource (preferred for client-facing routes).
+        /// </summary>
+        public Guid? PublicId { get; init; }
 
         public CallerIdentity? Caller { get; init; }
     }
