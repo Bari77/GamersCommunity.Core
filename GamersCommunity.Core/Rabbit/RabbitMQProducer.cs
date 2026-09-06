@@ -33,6 +33,131 @@ namespace GamersCommunity.Core.Rabbit
 
         private IConnection? Connection;
 
+        public async Task<string> CallAsync(string queue, string message, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(queue))
+                throw new BadRequestException("QUEUE_NULL", "Queue name must not be null or empty.");
+            if (string.IsNullOrWhiteSpace(message))
+                throw new BadRequestException("MESSAGE_NULL", "Message must not be null or empty.");
+
+            var conn = await EnsureConnectionAsync(ct);
+            await using var ch = await conn.CreateChannelAsync(cancellationToken: ct);
+
+            var replyQueue = await ch.QueueDeclareAsync(
+                queue: string.Empty,
+                durable: false,
+                exclusive: true,
+                autoDelete: true,
+                arguments: null,
+                cancellationToken: ct);
+
+            var correlationId = Guid.NewGuid().ToString("N");
+            var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+            string consumerTag = string.Empty;
+
+            var consumer = new AsyncEventingBasicConsumer(ch);
+            consumer.ReceivedAsync += async (_, ea) =>
+            {
+                try
+                {
+                    if (ea.BasicProperties?.CorrelationId != correlationId)
+                        return;
+
+                    var responseJson = Encoding.UTF8.GetString(ea.Body.ToArray());
+                    logger.Debug("RPC response received (corrId={CorrelationId}).", correlationId);
+
+                    try
+                    {
+                        var envelope = JsonConvert.DeserializeObject<RpcEnvelope<string?>>(responseJson);
+                        if (envelope is null)
+                            throw new RpcException("INVALID_RESPONSE", "Response cannot be deserialized.", responseJson);
+
+                        if (!envelope.Ok)
+                            throw new RpcException(
+                                envelope.Error?.Code ?? "ERROR",
+                                envelope.Error?.Message ?? "Unknown error",
+                                envelope.Error?.Details);
+
+                        tcs.TrySetResult(envelope.Data ?? string.Empty);
+                    }
+                    catch (JsonException jex)
+                    {
+                        logger.Warning(jex, "Response is not a valid envelope. Returning raw body.");
+                        tcs.TrySetResult(responseJson);
+                    }
+                    catch (RpcException rex)
+                    {
+                        tcs.TrySetException(rex);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.Error(ex, "Error while handling RPC response (corrId={CorrelationId}).", correlationId);
+                    tcs.TrySetException(ex);
+                }
+                finally
+                {
+                    try
+                    {
+                        await ch.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: ct);
+                    }
+                    catch (Exception ackEx)
+                    {
+                        logger.Warning(ackEx, "Failed to ACK RPC response (corrId={CorrelationId}).", correlationId);
+                    }
+                }
+            };
+
+            try
+            {
+                consumerTag = await ch.BasicConsumeAsync(
+                    queue: replyQueue.QueueName,
+                    autoAck: false,
+                    consumer: consumer,
+                    cancellationToken: ct);
+
+                var props = new BasicProperties
+                {
+                    CorrelationId = correlationId,
+                    ReplyTo = replyQueue.QueueName,
+                    ContentType = "application/json",
+                    ContentEncoding = "utf-8"
+                };
+
+                logger.Debug("Publishing RPC message to '{Queue}' (corrId={CorrelationId}).", queue, correlationId);
+
+                await ch.BasicPublishAsync(
+                    exchange: string.Empty,
+                    routingKey: queue,
+                    mandatory: false,
+                    basicProperties: props,
+                    body: Encoding.UTF8.GetBytes(message),
+                    cancellationToken: ct);
+
+                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                linkedCts.CancelAfter(TimeSpan.FromSeconds(opts.Value.Timeout));
+
+                var completed = await Task.WhenAny(tcs.Task, Task.Delay(Timeout.InfiniteTimeSpan, linkedCts.Token));
+                if (completed == tcs.Task)
+                    return await tcs.Task.ConfigureAwait(false);
+
+                throw new GatewayTimeoutException("TIMEOUT", $"No response received within the timeout period ({opts.Value.Timeout}s).");
+            }
+            finally
+            {
+                if (!string.IsNullOrWhiteSpace(consumerTag))
+                {
+                    try
+                    {
+                        await ch.BasicCancelAsync(consumerTag, cancellationToken: CancellationToken.None);
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+        }
+
         /// <summary>
         /// Publishes a message to the given queue using a fresh correlation id and a server-named reply queue.
         /// The returned <see cref="BasicProperties"/> contains the <c>CorrelationId</c> and the <c>ReplyTo</c> queue name.
@@ -42,6 +167,7 @@ namespace GamersCommunity.Core.Rabbit
         /// <param name="ct">Cancellation token.</param>
         /// <returns>AMQP properties including <c>CorrelationId</c> and <c>ReplyTo</c>.</returns>
         /// <exception cref="BadRequestException">Thrown when the queue or the message is invalid.</exception>
+        [Obsolete("Use CallAsync to keep declare/consume/publish on the same channel.")]
         public async Task<BasicProperties> SendMessageAsync(string queue, string message, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(queue))
