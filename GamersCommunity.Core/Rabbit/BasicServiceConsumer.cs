@@ -83,7 +83,7 @@ namespace GamersCommunity.Core.Rabbit
         /// Starts consuming messages from the configured queue and keeps the method alive
         /// until the provided <paramref name="ct"/> is cancelled. Per-message errors are
         /// logged and do not stop the consumer. Fatal connection errors are allowed to bubble up
-        /// (they are handled/logged in <see cref="InitRabbitMQAsync(CancellationToken)"/>).
+        /// (they are handled/logged in <see cref="OpenConnectionAsync"/> and <see cref="OpenChannelAsync"/>).
         /// </summary>
         /// <param name="ct">Cancellation token to stop the consumer gracefully.</param>
         /// <exception cref="InternalServerErrorException">
@@ -96,7 +96,8 @@ namespace GamersCommunity.Core.Rabbit
 
             logger.Information("Starting consumer on host '{Host}' for queue '{Queue}'.", Factory.HostName, QUEUE);
 
-            var channel = await InitRabbitMQAsync(ct);
+            await using var connection = await OpenConnectionAsync(ct);
+            await using var channel = await OpenChannelAsync(connection, ct);
 
             var consumer = new AsyncEventingBasicConsumer(channel);
             consumer.ReceivedAsync += async (_, ea) =>
@@ -155,18 +156,28 @@ namespace GamersCommunity.Core.Rabbit
             {
                 await Task.Delay(Timeout.Infinite, ct);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
-                try
-                {
-                    await channel.BasicCancelAsync(consumerTag, cancellationToken: ct);
-                }
-                catch (Exception ex)
-                {
-                    logger.Warning(ex, "Error while cancelling RabbitMQ consumer {Tag}.", consumerTag);
-                }
+            }
+            finally
+            {
+                await CancelConsumerGracefullyAsync(channel, consumerTag);
+            }
+        }
 
+        private async Task CancelConsumerGracefullyAsync(IChannel channel, string consumerTag)
+        {
+            if (string.IsNullOrWhiteSpace(consumerTag))
+                return;
+
+            try
+            {
+                await channel.BasicCancelAsync(consumerTag, cancellationToken: CancellationToken.None);
                 logger.Information("Consumer '{Tag}' cancelled.", consumerTag);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException and not TaskCanceledException)
+            {
+                logger.Warning(ex, "Error while cancelling RabbitMQ consumer {Tag}.", consumerTag);
             }
         }
 
@@ -198,25 +209,29 @@ namespace GamersCommunity.Core.Rabbit
                 cancellationToken: ct);
         }
 
-        /// <summary>
-        /// Creates the RabbitMQ connection and channel, declares the queue,
-        /// and returns an open channel ready to consume or publish RPC responses.
-        /// Logs and rethrows any fatal connection errors to allow the host/container to fail fast.
-        /// </summary>
-        /// <param name="ct">Cancellation token.</param>
-        /// <returns>An open <see cref="IChannel"/> bound to the configured queue.</returns>
-        /// <exception cref="InternalServerErrorException">
-        /// Thrown when the queue name is null or empty.
-        /// </exception>
-        private async Task<IChannel> InitRabbitMQAsync(CancellationToken ct)
+        private async Task<IConnection> OpenConnectionAsync(CancellationToken ct)
         {
-            if (string.IsNullOrWhiteSpace(QUEUE))
-                throw new InternalServerErrorException("QUEUE_NULL", "Queue name must not be null or empty.");
-
             try
             {
                 logger.Debug("Opening RabbitMQ connection to {Host}...", Factory.HostName);
-                var connection = await Factory.CreateConnectionAsync(ct);
+                return await Factory.CreateConnectionAsync(ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                logger.Information("RabbitMQ initialization cancelled.");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.Fatal(ex, "Failed to initialize RabbitMQ connection (host={Host}, queue={Queue}).", Factory.HostName, QUEUE);
+                throw;
+            }
+        }
+
+        private async Task<IChannel> OpenChannelAsync(IConnection connection, CancellationToken ct)
+        {
+            try
+            {
                 var channel = await connection.CreateChannelAsync(cancellationToken: ct);
 
                 await channel.QueueDeclareAsync(
@@ -237,7 +252,7 @@ namespace GamersCommunity.Core.Rabbit
             }
             catch (Exception ex)
             {
-                logger.Fatal(ex, "Failed to initialize RabbitMQ connection/channel (host={Host}, queue={Queue}).", Factory.HostName, QUEUE);
+                logger.Fatal(ex, "Failed to initialize RabbitMQ channel (host={Host}, queue={Queue}).", Factory.HostName, QUEUE);
                 throw;
             }
         }
