@@ -29,101 +29,45 @@ namespace GamersCommunity.Core.Logging
         #region Theme definition
 
         /// <summary>
-        /// Console theme mapping used by the SystemConsole sink to colorize log output by level and token type.
+        /// Builds a console theme colorizing the rendered message with <paramref name="message"/>. The timestamp,
+        /// the enriched properties, the stack frames and the template punctuation keep a fixed neutral palette,
+        /// so that only the message reacts to the level.
         /// </summary>
-        private static readonly SystemConsoleTheme THEME_SERILOG = new(new Dictionary<ConsoleThemeStyle, SystemConsoleThemeStyle>()
+        /// <param name="message">Color of the message text and of the values interpolated into it.</param>
+        /// <returns>A theme usable by the SystemConsole sink.</returns>
+        private static SystemConsoleTheme BuildTheme(ConsoleColor message)
         {
+            var content = new SystemConsoleThemeStyle { Foreground = message };
+
+            return new SystemConsoleTheme(new Dictionary<ConsoleThemeStyle, SystemConsoleThemeStyle>()
             {
-                ConsoleThemeStyle.LevelVerbose, new SystemConsoleThemeStyle
-                {
-                    Foreground = ConsoleColor.DarkGray,
-                }
-            },
-            {
-                ConsoleThemeStyle.LevelDebug, new SystemConsoleThemeStyle
-                {
-                    Foreground = ConsoleColor.Magenta,
-                }
-            },
-            {
-                ConsoleThemeStyle.LevelInformation, new SystemConsoleThemeStyle
-                {
-                    Foreground = ConsoleColor.Green,
-                }
-            },
-            {
-                ConsoleThemeStyle.LevelWarning, new SystemConsoleThemeStyle
-                {
-                    Foreground = ConsoleColor.DarkYellow,
-                }
-            },
-            {
-                ConsoleThemeStyle.LevelError, new SystemConsoleThemeStyle
-                {
-                    Foreground = ConsoleColor.Red,
-                }
-            },
-            {
-                ConsoleThemeStyle.LevelFatal, new SystemConsoleThemeStyle
-                {
-                    Foreground = ConsoleColor.DarkRed,
-                }
-            },
-            {
-                ConsoleThemeStyle.Text, new SystemConsoleThemeStyle
-                {
-                    Foreground = ConsoleColor.White,
-                }
-            },
-            {
-                ConsoleThemeStyle.SecondaryText, new SystemConsoleThemeStyle
-                {
-                    Foreground = ConsoleColor.DarkCyan,
-                }
-            },
-            {
-                ConsoleThemeStyle.TertiaryText, new SystemConsoleThemeStyle
-                {
-                    Foreground = ConsoleColor.DarkYellow,
-                }
-            },
-            {
-                ConsoleThemeStyle.String, new SystemConsoleThemeStyle
-                {
-                    Foreground = ConsoleColor.White,
-                }
-            },
-            {
-                ConsoleThemeStyle.Number, new SystemConsoleThemeStyle
-                {
-                    Foreground = ConsoleColor.White,
-                }
-            },
-            {
-                ConsoleThemeStyle.Boolean, new SystemConsoleThemeStyle
-                {
-                    Foreground = ConsoleColor.White,
-                }
-            },
-            {
-                ConsoleThemeStyle.Null, new SystemConsoleThemeStyle
-                {
-                    Foreground = ConsoleColor.White,
-                }
-            },
-            {
-                ConsoleThemeStyle.Name, new SystemConsoleThemeStyle
-                {
-                    Foreground = ConsoleColor.White,
-                }
-            },
-            {
-                ConsoleThemeStyle.Scalar, new SystemConsoleThemeStyle
-                {
-                    Foreground = ConsoleColor.White,
-                }
-            }
-        });
+                { ConsoleThemeStyle.LevelVerbose, new SystemConsoleThemeStyle { Foreground = ConsoleColor.DarkGray } },
+                { ConsoleThemeStyle.LevelDebug, new SystemConsoleThemeStyle { Foreground = ConsoleColor.Magenta } },
+                { ConsoleThemeStyle.LevelInformation, new SystemConsoleThemeStyle { Foreground = ConsoleColor.Green } },
+                { ConsoleThemeStyle.LevelWarning, new SystemConsoleThemeStyle { Foreground = ConsoleColor.DarkYellow } },
+                { ConsoleThemeStyle.LevelError, new SystemConsoleThemeStyle { Foreground = ConsoleColor.Red } },
+                { ConsoleThemeStyle.LevelFatal, new SystemConsoleThemeStyle { Foreground = ConsoleColor.DarkRed } },
+                { ConsoleThemeStyle.SecondaryText, new SystemConsoleThemeStyle { Foreground = ConsoleColor.DarkCyan } },
+                { ConsoleThemeStyle.TertiaryText, new SystemConsoleThemeStyle { Foreground = ConsoleColor.DarkYellow } },
+                { ConsoleThemeStyle.Text, content },
+                { ConsoleThemeStyle.String, content },
+                { ConsoleThemeStyle.Number, content },
+                { ConsoleThemeStyle.Boolean, content },
+                { ConsoleThemeStyle.Null, content },
+                { ConsoleThemeStyle.Name, content },
+                { ConsoleThemeStyle.Scalar, content }
+            });
+        }
+
+        /// <summary>
+        /// Console theme used for events below <see cref="LogEventLevel.Error"/>.
+        /// </summary>
+        private static readonly SystemConsoleTheme THEME_DEFAULT = BuildTheme(ConsoleColor.White);
+
+        /// <summary>
+        /// Console theme used for errors and fatals, so the message stands out in red.
+        /// </summary>
+        private static readonly SystemConsoleTheme THEME_ERROR = BuildTheme(ConsoleColor.Red);
 
         /// <summary>
         /// Default console/file output template for non-HTTP events.
@@ -164,9 +108,9 @@ namespace GamersCommunity.Core.Logging
         /// reduction override for <c>Microsoft.EntityFrameworkCore</c>.
         /// </para>
         /// <para>
-        /// Two sub-loggers split output: one excluding messages whose template starts with <c>HTTP</c>
-        /// (default template), and one including only those (HTTP template). In production, a rolling file
-        /// sink is added; when configured, a Seq sink is also enabled.
+        /// Console output is split in two by message template — messages starting with <c>HTTP</c> use the HTTP
+        /// template, the others the default one — then again by level so that errors and fatals render their
+        /// message in red. In production, a rolling file sink is added; when configured, a Seq sink is also enabled.
         /// </para>
         /// </remarks>
         private static LoggerConfiguration GetConfiguration(LoggerSettings config, string applicationName, IHostEnvironment environment)
@@ -178,23 +122,10 @@ namespace GamersCommunity.Core.Logging
                 .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
                 .Enrich.FromLogContext()
                 .Enrich.WithProperty("Application", applicationName)
-                .Enrich.WithProperty("Environment", environment.EnvironmentName)
-                .WriteTo.Logger(lc => lc
-                    .Filter.ByExcluding(log => log.MessageTemplate.Text.StartsWith("HTTP"))
-                    .WriteTo.Console(
-                        restrictedToMinimumLevel: config.MinimumLevel.ConsoleNotHttp,
-                        outputTemplate: DEFAULT_TEMPLATE,
-                        theme: THEME_SERILOG
-                    )
-                )
-                .WriteTo.Logger(lc => lc
-                    .Filter.ByIncludingOnly(log => log.MessageTemplate.Text.StartsWith("HTTP"))
-                    .WriteTo.Console(
-                        restrictedToMinimumLevel: config.MinimumLevel.ConsoleHttp,
-                        outputTemplate: HTTP_TEMPLATE,
-                        theme: THEME_SERILOG
-                    )
-                );
+                .Enrich.WithProperty("Environment", environment.EnvironmentName);
+
+            WriteToThemedConsole(loggerConfiguration, log => !IsHttp(log), config.MinimumLevel.ConsoleNotHttp, DEFAULT_TEMPLATE);
+            WriteToThemedConsole(loggerConfiguration, IsHttp, config.MinimumLevel.ConsoleHttp, HTTP_TEMPLATE);
 
             if (!string.IsNullOrEmpty(config.FilePath))
             {
@@ -216,6 +147,46 @@ namespace GamersCommunity.Core.Logging
             }
 
             return loggerConfiguration;
+        }
+
+        /// <summary>
+        /// Determines whether an event belongs to the HTTP sub-logger.
+        /// </summary>
+        /// <param name="log">The event to test.</param>
+        /// <returns><c>true</c> when the message template starts with <c>HTTP</c>.</returns>
+        private static bool IsHttp(LogEvent log) => log.MessageTemplate.Text.StartsWith("HTTP");
+
+        /// <summary>
+        /// Registers a pair of console sinks for the selected events: the default palette below
+        /// <see cref="LogEventLevel.Error"/>, the red palette at or above it.
+        /// </summary>
+        /// <param name="configuration">The configuration to add the sinks to.</param>
+        /// <param name="matches">Selects the events handled by this pair.</param>
+        /// <param name="minimumLevel">Minimum level accepted by both sinks.</param>
+        /// <param name="outputTemplate">Output template shared by both sinks.</param>
+        private static void WriteToThemedConsole(
+            LoggerConfiguration configuration,
+            Func<LogEvent, bool> matches,
+            LogEventLevel minimumLevel,
+            string outputTemplate)
+        {
+            configuration
+                .WriteTo.Logger(lc => lc
+                    .Filter.ByIncludingOnly(log => matches(log) && log.Level < LogEventLevel.Error)
+                    .WriteTo.Console(
+                        restrictedToMinimumLevel: minimumLevel,
+                        outputTemplate: outputTemplate,
+                        theme: THEME_DEFAULT
+                    )
+                )
+                .WriteTo.Logger(lc => lc
+                    .Filter.ByIncludingOnly(log => matches(log) && log.Level >= LogEventLevel.Error)
+                    .WriteTo.Console(
+                        restrictedToMinimumLevel: minimumLevel,
+                        outputTemplate: outputTemplate,
+                        theme: THEME_ERROR
+                    )
+                );
         }
     }
 }

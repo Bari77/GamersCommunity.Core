@@ -141,7 +141,8 @@ Default values:
 [21/11/2025 10:45:12 - Information] [Env:Production] [App:Gateway] [Ip:127.0.0.1] [Sender:User42] [UserId:7] - HTTP GET /api/users/7 => 200
 ```
 
-Colors adapt by level thanks to the custom `SystemConsoleTheme`.
+Colors adapt by level thanks to the custom `SystemConsoleTheme`. On `Error` and `Fatal` entries the message
+is printed in red; the timestamp, the `Env`/`App` prefix and the stack frames keep their usual colors.
 
 ---
 
