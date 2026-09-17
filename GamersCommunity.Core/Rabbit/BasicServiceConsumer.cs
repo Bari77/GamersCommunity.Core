@@ -79,11 +79,13 @@ namespace GamersCommunity.Core.Rabbit
             Password = opts.Value.Password,
         };
 
+        private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(3);
+
         /// <summary>
         /// Starts consuming messages from the configured queue and keeps the method alive
         /// until the provided <paramref name="ct"/> is cancelled. Per-message errors are
-        /// logged and do not stop the consumer. Fatal connection errors are allowed to bubble up
-        /// (they are handled/logged in <see cref="OpenConnectionAsync"/> and <see cref="OpenChannelAsync"/>).
+        /// logged and do not stop the consumer. Broker outages are retried every few seconds
+        /// instead of taking the process down.
         /// </summary>
         /// <param name="ct">Cancellation token to stop the consumer gracefully.</param>
         /// <exception cref="InternalServerErrorException">
@@ -96,72 +98,91 @@ namespace GamersCommunity.Core.Rabbit
 
             logger.Information("Starting consumer on host '{Host}' for queue '{Queue}'.", Factory.HostName, QUEUE);
 
-            await using var connection = await OpenConnectionAsync(ct);
-            await using var channel = await OpenChannelAsync(connection, ct);
-
-            var consumer = new AsyncEventingBasicConsumer(channel);
-            consumer.ReceivedAsync += async (_, ea) =>
+            while (!ct.IsCancellationRequested)
             {
-                var props = ea.BasicProperties;
                 try
                 {
-                    var body = ea.Body.ToArray();
-                    var message = Encoding.UTF8.GetString(body);
+                    await using var connection = await OpenConnectionAsync(ct);
+                    await using var channel = await OpenChannelAsync(connection, ct);
 
-                    BusMessage? parsed;
+                    var consumer = new AsyncEventingBasicConsumer(channel);
+                    consumer.ReceivedAsync += async (_, ea) =>
+                    {
+                        var props = ea.BasicProperties;
+                        try
+                        {
+                            var body = ea.Body.ToArray();
+                            var message = Encoding.UTF8.GetString(body);
+
+                            BusMessage? parsed;
+                            try
+                            {
+                                parsed = JsonConvert.DeserializeObject<BusMessage>(message);
+                                if (parsed is null)
+                                    throw new InvalidOperationException("Deserialized message is null.");
+                            }
+                            catch (Exception ex)
+                            {
+                                logger.Error(ex, "Failed to deserialize incoming message. PayloadLength={Length}", body.Length);
+                                await ReplyAsync(channel, props, new RpcEnvelope<object>(false, null,
+                                    new RpcError("DESERIALIZE_ERROR", "Invalid payload.", ex.Message)), ct);
+                                return;
+                            }
+
+                            logger.Debug("Message received: type={Type}, resource={Resource}, action={Action}.", parsed.Type, parsed.Resource, parsed.Action);
+
+                            try
+                            {
+                                var data = await router.RouteAsync(parsed, ct);
+                                await ReplyAsync(channel, props, new RpcEnvelope<string?>(true, data, null), ct);
+                            }
+                            catch (AppException ex)
+                            {
+                                logger.Error(ex, "Error while routing message: type={Type}, resource={Resource}, action={Action}.", parsed.Type, parsed.Resource, parsed.Action);
+                                await ReplyAsync(channel, props, new RpcEnvelope<object>(false, null, new RpcError(ex.Code, ex.Message, ex.StackTrace)), ct);
+                            }
+                            catch (Exception ex)
+                            {
+                                logger.Error(ex, "Error while routing message: type={Type}, resource={Resource}, action={Action}.", parsed.Type, parsed.Resource, parsed.Action);
+                                await ReplyAsync(channel, props, new RpcEnvelope<object>(false, null, new RpcError("MS_ERROR", ex.Message, ex.StackTrace)), ct);
+                            }
+                        }
+                        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+                        catch (Exception ex)
+                        {
+                            logger.Error(ex, "Unhandled error while processing an incoming message.");
+                            await ReplyAsync(channel, ea.BasicProperties, new RpcEnvelope<object>(false, null,
+                                new RpcError("UNHANDLED", ex.Message, ex.StackTrace)), ct);
+                        }
+                    };
+
+                    var consumerTag = await channel.BasicConsumeAsync(queue: QUEUE!, autoAck: true, consumer: consumer, cancellationToken: ct);
+
                     try
                     {
-                        parsed = JsonConvert.DeserializeObject<BusMessage>(message);
-                        if (parsed is null)
-                            throw new InvalidOperationException("Deserialized message is null.");
+                        await Task.Delay(Timeout.Infinite, ct);
                     }
-                    catch (Exception ex)
+                    finally
                     {
-                        logger.Error(ex, "Failed to deserialize incoming message. PayloadLength={Length}", body.Length);
-                        await ReplyAsync(channel, props, new RpcEnvelope<object>(false, null,
-                            new RpcError("DESERIALIZE_ERROR", "Invalid payload.", ex.Message)), ct);
-                        return;
-                    }
-
-                    logger.Debug("Message received: type={Type}, resource={Resource}, action={Action}.", parsed.Type, parsed.Resource, parsed.Action);
-
-                    try
-                    {
-                        var data = await router.RouteAsync(parsed, ct);
-                        await ReplyAsync(channel, props, new RpcEnvelope<string?>(true, data, null), ct);
-                    }
-                    catch (AppException ex)
-                    {
-                        logger.Error(ex, "Error while routing message: type={Type}, resource={Resource}, action={Action}.", parsed.Type, parsed.Resource, parsed.Action);
-                        await ReplyAsync(channel, props, new RpcEnvelope<object>(false, null, new RpcError(ex.Code, ex.Message, ex.StackTrace)), ct);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.Error(ex, "Error while routing message: type={Type}, resource={Resource}, action={Action}.", parsed.Type, parsed.Resource, parsed.Action);
-                        await ReplyAsync(channel, props, new RpcEnvelope<object>(false, null, new RpcError("MS_ERROR", ex.Message, ex.StackTrace)), ct);
+                        await CancelConsumerGracefullyAsync(channel, consumerTag);
                     }
                 }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    break;
+                }
                 catch (Exception ex)
                 {
-                    logger.Error(ex, "Unhandled error while processing an incoming message.");
-                    await ReplyAsync(channel, ea.BasicProperties, new RpcEnvelope<object>(false, null,
-                        new RpcError("UNHANDLED", ex.Message, ex.StackTrace)), ct);
+                    logger.Error(ex, "RabbitMQ consumer on '{Queue}' disconnected; retrying in {Delay}s.", QUEUE, ReconnectDelay.TotalSeconds);
+                    try
+                    {
+                        await Task.Delay(ReconnectDelay, ct);
+                    }
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                    {
+                        break;
+                    }
                 }
-            };
-
-            var consumerTag = await channel.BasicConsumeAsync(queue: QUEUE!, autoAck: true, consumer: consumer, cancellationToken: ct);
-
-            try
-            {
-                await Task.Delay(Timeout.Infinite, ct);
-            }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-            }
-            finally
-            {
-                await CancelConsumerGracefullyAsync(channel, consumerTag);
             }
         }
 
@@ -211,50 +232,24 @@ namespace GamersCommunity.Core.Rabbit
 
         private async Task<IConnection> OpenConnectionAsync(CancellationToken ct)
         {
-            try
-            {
-                logger.Debug("Opening RabbitMQ connection to {Host}...", Factory.HostName);
-                return await Factory.CreateConnectionAsync(ct);
-            }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                logger.Information("RabbitMQ initialization cancelled.");
-                throw;
-            }
-            catch (Exception ex)
-            {
-                logger.Fatal(ex, "Failed to initialize RabbitMQ connection (host={Host}, queue={Queue}).", Factory.HostName, QUEUE);
-                throw;
-            }
+            logger.Debug("Opening RabbitMQ connection to {Host}...", Factory.HostName);
+            return await Factory.CreateConnectionAsync(ct);
         }
 
         private async Task<IChannel> OpenChannelAsync(IConnection connection, CancellationToken ct)
         {
-            try
-            {
-                var channel = await connection.CreateChannelAsync(cancellationToken: ct);
+            var channel = await connection.CreateChannelAsync(cancellationToken: ct);
 
-                await channel.QueueDeclareAsync(
-                    queue: QUEUE!,
-                    durable: true,
-                    exclusive: false,
-                    autoDelete: false,
-                    cancellationToken: ct
-                );
+            await channel.QueueDeclareAsync(
+                queue: QUEUE!,
+                durable: true,
+                exclusive: false,
+                autoDelete: false,
+                cancellationToken: ct
+            );
 
-                logger.Information("RabbitMQ channel ready. Queue '{Queue}' declared (durable=true).", QUEUE);
-                return channel;
-            }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                logger.Information("RabbitMQ initialization cancelled.");
-                throw;
-            }
-            catch (Exception ex)
-            {
-                logger.Fatal(ex, "Failed to initialize RabbitMQ channel (host={Host}, queue={Queue}).", Factory.HostName, QUEUE);
-                throw;
-            }
+            logger.Information("RabbitMQ channel ready. Queue '{Queue}' declared (durable=true).", QUEUE);
+            return channel;
         }
     }
 }
