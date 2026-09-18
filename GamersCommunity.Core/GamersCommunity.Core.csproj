@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
 	<PackageId>GamersCommunity.Core</PackageId>
-	<Version>9.7.1</Version>
+	<Version>9.7.2</Version>
 	<Authors>Bari</Authors>
 	<Description>GamersCommunity Core package</Description>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -34,7 +34,7 @@
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
-    <PackageReference Include="HtmlSanitizer" Version="9.0.886" />
+    <PackageReference Include="HtmlSanitizer" Version="9.2.1039" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="RabbitMQ.Client" Version="7.2.0" />
     <PackageReference Include="Serilog" Version="4.3.0" />
