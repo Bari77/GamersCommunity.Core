@@ -1,21 +1,14 @@
 # Agent guidelines — Core
 
-Technical rules for AI agents working in GamersCommunity.Core (shared .NET libraries).
+Shared module: [`AgentKit/`](AgentKit/) → [GamersCommunity.AgentKit](https://github.com/Bari77/GamersCommunity.AgentKit)
 
-## Never start servers
+- [`AgentKit/AGENTS.base.md`](AgentKit/AGENTS.base.md)
+- [`AgentKit/ENGINEERING_STANDARDS.md`](AgentKit/ENGINEERING_STANDARDS.md)
+- [`AgentKit/POLICY.md`](AgentKit/POLICY.md)
+- Optional: [`AGENTS.override.md`](AGENTS.override.md)
 
-Do **not** start long-lived processes. One-shot builds/tests are OK.
+## Repo-specific
 
-## Role of this repo
-
-- Hold **generic** building blocks reused by Platform, Gateway, and game Consumers (Rabbit helpers, logging, exceptions, EF helpers, etc.).
-- When a game or Platform change is truly shared and would otherwise be copied into every `Program.cs` / host, prefer extracting it here so copies do not diverge.
-- Do **not** put game-specific domain (LoL teams, WoW guilds, etc.) in Core.
-
-## Game Template sync
-
-If a Core change becomes a new default for every game host, also update **GamersCommunity.Games.Template** so new games inherit it.
-
-## Commits / push
-
-Only when the developer explicitly asks.
+- Hold **generic** .NET building blocks only (RPC, hosting, seeds framework, realtime, Platform clients, etc.).
+- Do **not** put game-specific domain (LoL teams, WoW guilds, …) here.
+- If a Core change becomes the default for every game host, also update **GamersCommunity.Games.Template**.
