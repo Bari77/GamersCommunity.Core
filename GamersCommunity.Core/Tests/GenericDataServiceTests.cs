@@ -128,8 +128,10 @@ namespace GamersCommunity.Core.Tests
         [Theory]
         [InlineData("Data mandatory", "Create")]
         [InlineData("Id mandatory", "Get")]
-        [InlineData("Id mandatory", "Update")]
+        // Update validates the payload before resolving the target id.
+        [InlineData("Data mandatory", "Update")]
         [InlineData("Data mandatory", "Update", null, 1)]
+        [InlineData("Id mandatory", "Update", "{}", null)]
         [InlineData("Id mandatory", "Delete")]
         public async Task Action_Handle_Throw_Invalid_Data(string exception, string action, string? data = null, int? id = null)
         {
