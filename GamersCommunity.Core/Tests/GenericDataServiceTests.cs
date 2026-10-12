@@ -61,6 +61,30 @@ namespace GamersCommunity.Core.Tests
         protected abstract TService CreateService();
 
         /// <summary>
+        /// Optional authenticated caller attached to every <see cref="BusMessage"/> in this suite.
+        /// Override when the service under test requires <see cref="BusMessage.Caller"/>.
+        /// </summary>
+        protected virtual CallerIdentity? TestCaller => null;
+
+        /// <summary>
+        /// Builds a DATA bus message for the suite, including <see cref="TestCaller"/> when set.
+        /// </summary>
+        protected BusMessage CreateBusMessage(
+            string action,
+            string? data = null,
+            int? id = null,
+            string? resource = null) =>
+            new()
+            {
+                Type = Enums.BusServiceTypeEnum.DATA,
+                Action = action,
+                Data = data,
+                Id = id,
+                Resource = resource ?? string.Empty,
+                Caller = TestCaller,
+            };
+
+        /// <summary>
         /// Creates a new context seeded with base data and any additional fake entities.
         /// </summary>
         protected virtual TContext CreateContext()
@@ -110,12 +134,8 @@ namespace GamersCommunity.Core.Tests
             var service = CreateService();
 
             // Assert
-            await Assert.ThrowsAsync<InternalServerErrorException>(() => service.HandleAsync(new BusMessage()
-            {
-                Type = Enums.BusServiceTypeEnum.DATA,
-                Action = "UnknownAction",
-                Resource = string.Empty
-            }));
+            await Assert.ThrowsAsync<InternalServerErrorException>(() =>
+                service.HandleAsync(CreateBusMessage("UnknownAction")));
         }
 
         /// <summary>
@@ -139,13 +159,8 @@ namespace GamersCommunity.Core.Tests
             var service = CreateService();
 
             // Assert
-            var ex = await Assert.ThrowsAsync<BadRequestException>(() => service.HandleAsync(new BusMessage()
-            {
-                Type = Enums.BusServiceTypeEnum.DATA,
-                Action = action,
-                Data = data,
-                Id = id
-            }));
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                service.HandleAsync(CreateBusMessage(action, data, id)));
             Assert.Equal(exception, ex.Message);
         }
 
@@ -159,12 +174,8 @@ namespace GamersCommunity.Core.Tests
             var service = CreateService();
 
             // Act
-            var result = await service.HandleAsync(new BusMessage()
-            {
-                Type = Enums.BusServiceTypeEnum.DATA,
-                Action = "Create",
-                Data = JsonSafe.Serialize(GetNewEntity())
-            });
+            var result = await service.HandleAsync(
+                CreateBusMessage("Create", JsonSafe.Serialize(GetNewEntity())));
 
             // Assert
             var id = JsonConvert.DeserializeObject<int>(result);
@@ -184,12 +195,7 @@ namespace GamersCommunity.Core.Tests
             var service = CreateService();
 
             // Act
-            var result = await service.HandleAsync(new BusMessage()
-            {
-                Type = Enums.BusServiceTypeEnum.DATA,
-                Action = "Get",
-                Id = id,
-            });
+            var result = await service.HandleAsync(CreateBusMessage("Get", id: id));
 
             // Assert
             var entity = JsonConvert.DeserializeObject<TEntity>(result);
@@ -206,12 +212,7 @@ namespace GamersCommunity.Core.Tests
             var service = CreateService();
 
             // Act
-            var result = await service.HandleAsync(new BusMessage()
-            {
-                Type = Enums.BusServiceTypeEnum.DATA,
-                Action = "List",
-                Resource = string.Empty
-            });
+            var result = await service.HandleAsync(CreateBusMessage("List"));
             var entities = JsonConvert.DeserializeObject<List<TEntity>>(result);
 
             // Assert
