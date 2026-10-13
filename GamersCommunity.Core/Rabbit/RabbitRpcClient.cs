@@ -60,7 +60,7 @@ public sealed class RabbitRpcClient : IRabbitRpcClient, IAsyncDisposable
 
         var correlationId = Guid.NewGuid().ToString("N");
         var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-        string consumerTag = string.Empty;
+        var consumerTag = string.Empty;
 
         var consumer = new AsyncEventingBasicConsumer(channel);
         consumer.ReceivedAsync += async (_, ea) =>

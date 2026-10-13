@@ -53,7 +53,9 @@ public static class RichHtml
                  {
                      "p", "br", "strong", "b", "em", "i", "u", "s", "ul", "ol", "li", "span", "a", "h2", "h3",
                  })
+        {
             sanitizer.AllowedTags.Add(tag);
+        }
 
         sanitizer.AllowedAttributes.Clear();
         foreach (var attr in new[] { "style", "href", "target", "rel", "class" })

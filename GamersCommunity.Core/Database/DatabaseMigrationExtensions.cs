@@ -12,7 +12,7 @@ public static class DatabaseMigrationExtensions
     private static readonly TimeSpan DefaultRetryDelay = TimeSpan.FromSeconds(5);
 
     /// <summary>
-    /// Runs <see cref="DatabaseFacade.MigrateAsync"/> in a loop until SQL is reachable or a non-transient error occurs.
+    /// Runs <see cref="RelationalDatabaseFacadeExtensions.MigrateAsync(Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade, CancellationToken)"/> in a loop until SQL is reachable or a non-transient error occurs.
     /// </summary>
     /// <typeparam name="TContext">The service <see cref="DbContext"/> type.</typeparam>
     /// <param name="services">Root service provider (typically the built host).</param>

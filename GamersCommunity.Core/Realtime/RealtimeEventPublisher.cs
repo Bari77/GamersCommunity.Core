@@ -9,11 +9,6 @@ using Serilog;
 
 namespace GamersCommunity.Core.Realtime;
 
-public interface IRealtimeEventPublisher
-{
-    Task PublishAsync<T>(T payload, CancellationToken ct = default);
-}
-
 /// <summary>
 /// Publishes JSON realtime events to <see cref="RealtimeQueues.Gateway"/>.
 /// </summary>

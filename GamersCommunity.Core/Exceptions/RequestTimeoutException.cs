@@ -1,26 +1,25 @@
-﻿using System.Net;
+using System.Net;
 
-namespace GamersCommunity.Core.Exceptions
+namespace GamersCommunity.Core.Exceptions;
+
+/// <summary>
+/// Exception indicating that the client did not produce a request within the time the server was prepared to wait (HTTP 408 - Request Timeout).
+/// </summary>
+/// <remarks>
+/// Use this for client-originated timeouts (e.g., slow upload, body not received in time, client stalled),
+/// as opposed to upstream/service timeouts which should map to <c>GatewayTimeoutException</c> (HTTP 504).
+/// Handlers can catch <see cref="IAppException"/> to convert it into a standardized error response.
+/// </remarks>
+/// <param name="code">Human-readable code of the validation or input error.</param>
+/// <param name="message">Human-readable description of the timeout condition.</param>
+/// <example>
+/// <code>
+/// using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+/// if (!await reader.ReadAsync(cts.Token))
+///     throw new RequestTimeoutException("REQUEST_TIMEOUT", "Request body was not received within 30 seconds.");
+/// </code>
+/// </example>
+public class RequestTimeoutException(string code = "REQUEST_TIMEOUT", string? message = "Waiting time for a client request, elapsed on the server side.")
+    : AppException(HttpStatusCode.RequestTimeout, code, message)
 {
-    /// <summary>
-    /// Exception indicating that the client did not produce a request within the time the server was prepared to wait (HTTP 408 - Request Timeout).
-    /// </summary>
-    /// <remarks>
-    /// Use this for client-originated timeouts (e.g., slow upload, body not received in time, client stalled),
-    /// as opposed to upstream/service timeouts which should map to <c>GatewayTimeoutException</c> (HTTP 504).
-    /// Handlers can catch <see cref="IAppException"/> to convert it into a standardized error response.
-    /// </remarks>
-    /// <param name="code">Human-readable code of the validation or input error.</param>
-    /// <param name="message">Human-readable description of the timeout condition.</param>
-    /// <example>
-    /// <code>
-    /// using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-    /// if (!await reader.ReadAsync(cts.Token))
-    ///     throw new RequestTimeoutException("REQUEST_TIMEOUT", "Request body was not received within 30 seconds.");
-    /// </code>
-    /// </example>
-    public class RequestTimeoutException(string code = "REQUEST_TIMEOUT", string? message = "Waiting time for a client request, elapsed on the server side.")
-        : AppException(HttpStatusCode.RequestTimeout, code, message)
-    {
-    }
 }

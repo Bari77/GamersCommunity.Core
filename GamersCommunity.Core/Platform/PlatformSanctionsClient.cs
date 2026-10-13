@@ -7,14 +7,6 @@ using Serilog;
 
 namespace GamersCommunity.Core.Platform;
 
-public interface IPlatformSanctionsClient
-{
-    /// <summary>
-    /// Refuses the call when the caller is muted or banned on Platform.
-    /// </summary>
-    Task EnsureCanPublishAsync(BusMessage message, CancellationToken ct = default);
-}
-
 /// <summary>
 /// Asks Platform, on every publication, whether the caller is allowed to speak.
 /// </summary>

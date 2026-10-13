@@ -1,42 +1,41 @@
-﻿using GamersCommunity.Core.Enums;
+using GamersCommunity.Core.Enums;
 
-namespace GamersCommunity.Core.Rabbit
+namespace GamersCommunity.Core.Rabbit;
+
+/// <summary>
+/// Represents a generic message dispatched through the message bus.
+/// </summary>
+public sealed class BusMessage
 {
     /// <summary>
-    /// Represents a generic message dispatched through the message bus.
+    /// The category of the target service (Table, Feature, etc.).
     /// </summary>
-    public sealed class BusMessage
-    {
-        /// <summary>
-        /// The category of the target service (Table, Feature, etc.).
-        /// </summary>
-        public BusServiceTypeEnum Type { get; init; }
+    public BusServiceTypeEnum Type { get; init; }
 
-        /// <summary>
-        /// The name of the target resource (e.g. "Users", "AppSettings").
-        /// </summary>
-        public string Resource { get; init; } = default!;
+    /// <summary>
+    /// The name of the target resource (e.g. "Users", "AppSettings").
+    /// </summary>
+    public string Resource { get; init; } = default!;
 
-        /// <summary>
-        /// The action to execute (GET, LIST, UPDATE, etc.).
-        /// </summary>
-        public string Action { get; init; } = default!;
+    /// <summary>
+    /// The action to execute (GET, LIST, UPDATE, etc.).
+    /// </summary>
+    public string Action { get; init; } = default!;
 
-        /// <summary>
-        /// Optional serialized data payload.
-        /// </summary>
-        public string? Data { get; init; }
+    /// <summary>
+    /// Optional serialized data payload.
+    /// </summary>
+    public string? Data { get; init; }
 
-        /// <summary>
-        /// Optional internal identifier for the target resource.
-        /// </summary>
-        public int? Id { get; init; }
+    /// <summary>
+    /// Optional internal identifier for the target resource.
+    /// </summary>
+    public int? Id { get; init; }
 
-        /// <summary>
-        /// Optional public identifier for the target resource (preferred for client-facing routes).
-        /// </summary>
-        public Guid? PublicId { get; init; }
+    /// <summary>
+    /// Optional public identifier for the target resource (preferred for client-facing routes).
+    /// </summary>
+    public Guid? PublicId { get; init; }
 
-        public CallerIdentity? Caller { get; init; }
-    }
+    public CallerIdentity? Caller { get; init; }
 }

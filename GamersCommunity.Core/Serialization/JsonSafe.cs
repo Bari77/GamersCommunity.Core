@@ -1,23 +1,22 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 
-namespace GamersCommunity.Core.Serialization
+namespace GamersCommunity.Core.Serialization;
+
+public static class JsonSafe
 {
-    public static class JsonSafe
+    private static readonly JsonSerializerSettings Settings = new()
     {
-        private static readonly JsonSerializerSettings _settings = new()
-        {
-            ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
-            NullValueHandling = NullValueHandling.Ignore,
-            ContractResolver = new CamelCasePropertyNamesContractResolver(),
-            DateTimeZoneHandling = DateTimeZoneHandling.Utc,
-            DateFormatHandling = DateFormatHandling.IsoDateFormat,
-        };
+        ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
+        NullValueHandling = NullValueHandling.Ignore,
+        ContractResolver = new CamelCasePropertyNamesContractResolver(),
+        DateTimeZoneHandling = DateTimeZoneHandling.Utc,
+        DateFormatHandling = DateFormatHandling.IsoDateFormat,
+    };
 
-        public static string Serialize(object value)
-            => JsonConvert.SerializeObject(value, _settings);
+    public static string Serialize(object value)
+        => JsonConvert.SerializeObject(value, Settings);
 
-        public static T? Deserialize<T>(string json)
-            => JsonConvert.DeserializeObject<T>(json, _settings);
-    }
+    public static T? Deserialize<T>(string json)
+        => JsonConvert.DeserializeObject<T>(json, Settings);
 }
