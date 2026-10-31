@@ -11,7 +11,7 @@ namespace GamersCommunity.Core.Telemetry;
 
 /// <summary>
 /// Registers OpenTelemetry traces and metrics for every GamersCommunity host.
-/// Logs stay on Serilog (console, optional Seq, optional OTLP).
+/// Logs stay on Serilog (console, optional rolling file, optional OTLP).
 /// </summary>
 public static class GamersCommunityTelemetryExtensions
 {

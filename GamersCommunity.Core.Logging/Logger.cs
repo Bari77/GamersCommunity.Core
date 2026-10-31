@@ -9,7 +9,7 @@ namespace GamersCommunity.Core.Logging;
 
 /// <summary>
 /// Centralized Serilog bootstrapper used to configure sinks, minimum levels, enrichers,
-/// and output templates for console/file/Seq targets.
+/// and output templates for console and file targets.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -21,9 +21,8 @@ namespace GamersCommunity.Core.Logging;
 /// <para>
 /// Enrichment adds <c>Application</c> and <c>Environment</c> properties to every event.
 /// Serilog internal diagnostics are written to <c>serilog_errors.txt</c> via <see cref="Serilog.Debugging.SelfLog"/>.
-/// In production, a rolling file sink is enabled; a Seq sink is also configured when
-/// <c>SeqPath</c> and <c>SeqKey</c> are provided in <see cref="LoggerSettings"/>.
-/// An OTLP sink is added beside console and Seq when <see cref="TelemetryExport.ResolveOtlpEndpoint"/>
+/// A rolling file sink is added when <see cref="LoggerSettings.FilePath"/> is set.
+/// An OTLP sink is added beside the console when <see cref="TelemetryExport.ResolveOtlpEndpoint"/>
 /// returns an endpoint. Console output is unchanged.
 /// </para>
 /// </remarks>
@@ -94,7 +93,7 @@ public static class Logger
     /// <summary>
     /// Initializes the global <see cref="Serilog.Log.Logger"/> instance using the provided settings.
     /// </summary>
-    /// <param name="config">Typed logger settings (sinks/options like file path, Seq, etc.).</param>
+    /// <param name="config">Typed logger settings (console levels, optional file path).</param>
     /// <param name="applicationName">Application name to enrich as a property on every log event.</param>
     /// <param name="environment">Host environment used to detect production and enrich log events.</param>
     /// <param name="configuration">Optional configuration used to resolve <c>Telemetry:OtlpEndpoint</c>.</param>
@@ -121,12 +120,13 @@ public static class Logger
     /// <para>
     /// Internal Serilog diagnostics are enabled and written to <c>serilog_errors.txt</c> to aid troubleshooting
     /// sink/formatting issues. The minimum level defaults to <c>Verbose</c> for full control, with a noise
-    /// reduction override for <c>Microsoft.EntityFrameworkCore</c>.
+    /// reduction override for <c>Microsoft.EntityFrameworkCore</c> taken from
+    /// <see cref="LogMinimumLevel.EntityFrameworkCore"/>.
     /// </para>
     /// <para>
     /// Console output is split in two by message template — messages starting with <c>HTTP</c> use the HTTP
     /// template, the others the default one — then again by level so that errors and fatals render their
-    /// message in red. In production, a rolling file sink is added; when configured, a Seq sink is also enabled.
+    /// message in red. A rolling file sink is added when a file path is configured.
     /// The OTLP sink, when an endpoint is resolved, is added beside those sinks.
     /// </para>
     /// </remarks>
@@ -140,7 +140,7 @@ public static class Logger
 
         var loggerConfiguration = new LoggerConfiguration()
             .MinimumLevel.Is(config.MinimumLevel.Global)
-            .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
+            .MinimumLevel.Override("Microsoft.EntityFrameworkCore", config.MinimumLevel.EntityFrameworkCore)
             .Enrich.FromLogContext()
             .Enrich.WithProperty("Application", applicationName)
             .Enrich.WithProperty("Environment", environment.EnvironmentName);
@@ -156,15 +156,6 @@ public static class Logger
                 outputTemplate: DEFAULT_TEMPLATE,
                 rollingInterval: RollingInterval.Day,
                 retainedFileCountLimit: 7);
-        }
-
-        if (!string.IsNullOrEmpty(config.SeqPath)
-            && !string.IsNullOrEmpty(config.SeqKey))
-        {
-            loggerConfiguration.WriteTo.Seq(
-                serverUrl: config.SeqPath,
-                restrictedToMinimumLevel: config.MinimumLevel.Seq,
-                apiKey: config.SeqKey);
         }
 
         if (!string.IsNullOrEmpty(otlpEndpoint))

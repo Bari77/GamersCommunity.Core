@@ -24,10 +24,6 @@ public class LogMinimumLevel
     /// </summary>
     public LogEventLevel File { get; set; } = LogEventLevel.Debug;
     /// <summary>
-    /// Sets the minimum log event level for Seq operations.
-    /// </summary>
-    public LogEventLevel Seq { get; set; } = LogEventLevel.Information;
-    /// <summary>
     /// Sets the minimum log event level for Entity Framework Core operations.
     /// </summary>
     public LogEventLevel EntityFrameworkCore { get; set; } = LogEventLevel.Warning;

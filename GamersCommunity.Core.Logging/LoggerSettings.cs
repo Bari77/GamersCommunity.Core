@@ -11,17 +11,7 @@ public class LoggerSettings
     public LogMinimumLevel MinimumLevel { get; set; } = new LogMinimumLevel();
 
     /// <summary>
-    /// File path
+    /// Rolling file path. When empty, no file sink is registered.
     /// </summary>
     public string? FilePath { get; set; }
-
-    /// <summary>
-    /// Seq path
-    /// </summary>
-    public string? SeqPath { get; set; }
-
-    /// <summary>
-    /// Seq API key
-    /// </summary>
-    public string? SeqKey { get; set; }
 }

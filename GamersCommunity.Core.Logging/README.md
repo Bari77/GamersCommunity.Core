@@ -18,9 +18,9 @@ It wraps Serilog with a standard configuration that includes:
 - **Automatic detection of HTTP logs** (messages starting with `HTTP`)
 - **Separated sub-loggers** for HTTP and non-HTTP entries
 - **Environment & application enrichment**
-- **Per‑sink minimum log levels** (Console, File, Seq)
-- **Daily file rotation**
-- **Seq integration** (API key supported)
+- **Per‑sink minimum log levels** (Console, File)
+- **Daily file rotation** when a file path is set
+- **OTLP log export** when `Telemetry:OtlpEndpoint` is set (Development exports to the local Aspire dashboard by default)
 - **Strongly-typed settings** (`LoggerSettings` / `LogMinimumLevel`)
 - **Serilog internal diagnostics** written to `serilog_errors.txt`
 
@@ -48,18 +48,15 @@ dotnet add package GamersCommunity.Core.Logging
 
 ```json
 {
-  "Logger": {
+  "LoggerSettings": {
     "MinimumLevel": {
       "Global": "Information",
       "ConsoleHttp": "Information",
       "ConsoleNotHttp": "Debug",
       "File": "Debug",
-      "Seq": "Warning",
       "EntityFrameworkCore": "Warning"
     },
-    "FilePath": "logs/log-.txt",
-    "SeqPath": "http://localhost:5341",
-    "SeqKey": ""
+    "FilePath": "logs/log-.txt"
   }
 }
 ```
@@ -72,7 +69,7 @@ All fields are optional — defaults are provided.
 
 ```csharp
 var loggerSettings = builder.Configuration
-    .GetSection("Logger")
+    .GetSection("LoggerSettings")
     .Get<LoggerSettings>() ?? new LoggerSettings();
 
 GamersCommunity.Core.Logging.Logger.Initialize(
@@ -93,9 +90,7 @@ builder.Host.UseSerilog();
 | Property      | Description |
 |---------------|-------------|
 | `MinimumLevel` | Set of minimum log levels per sink |
-| `FilePath`     | Path for rolling log files (optional) |
-| `SeqPath`      | Seq server URL |
-| `SeqKey`       | Seq API key (optional) |
+| `FilePath`     | Path for rolling log files. Empty skips the file sink |
 
 ---
 
@@ -109,7 +104,6 @@ This class enables **fine‑grained control** over log levels per output target:
 | `ConsoleHttp`          | Console logs whose message begins with `"HTTP"` |
 | `ConsoleNotHttp`       | Console logs not starting with `"HTTP"` |
 | `File`                 | Rolling file logs |
-| `Seq`                  | Seq logs |
 | `EntityFrameworkCore`  | EF Core log level override |
 
 Default values:
@@ -120,7 +114,6 @@ Default values:
   "ConsoleHttp": "Verbose",
   "ConsoleNotHttp": "Verbose",
   "File": "Debug",
-  "Seq": "Information",
   "EntityFrameworkCore": "Warning"
 }
 ```
@@ -161,19 +154,9 @@ Features:
 
 ---
 
-## 📡 Seq Logging
+## 📡 Centralized logs
 
-Enable by setting:
-
-```json
-"SeqPath": "https://seq.mydomain.com",
-"SeqKey": "MY-API-KEY"
-```
-
-Supports:
-- Minimum level override
-- API key authentication
-- Fully structured events
+Structured logs leave the process through the OTLP sink when an endpoint is resolved: the local Aspire dashboard in Development, or `Telemetry:OtlpEndpoint` in staging and production. Console output stays in the process terminal. Rolling files are written only when `FilePath` is set.
 
 ---
 
@@ -185,7 +168,7 @@ Internal Serilog errors (sink failures, formatting issues) are logged to:
 serilog_errors.txt
 ```
 
-Very useful when debugging permissions or Seq connectivity problems.
+Very useful when debugging sink or formatting problems.
 
 ---
 
