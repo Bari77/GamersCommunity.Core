@@ -83,6 +83,8 @@ public static class GamersCommunityConsumerHost
 
             var environment = host.Services.GetRequiredService<IHostEnvironment>();
             Log.Information("Started in {Environment} environment...", environment.EnvironmentName);
+            host.Services.GetRequiredService<IHostApplicationLifetime>()
+                .ApplicationStopping.Register(() => Log.Information("Stopping ..."));
             await host.RunAsync();
         }
         catch (HostAbortedException ex)
