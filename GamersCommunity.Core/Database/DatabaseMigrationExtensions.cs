@@ -49,7 +49,7 @@ public static class DatabaseMigrationExtensions
             catch (Exception ex) when (SqlConnectivity.IsUnavailable(ex))
             {
                 logger.LogInformation(
-                    "Unable to connect to SQL: {Message}. Retrying in {Delay}s...",
+                    "SQL is not ready: {Message}. Retrying in {Delay}s...",
                     SqlConnectivity.GetErrorMessage(ex),
                     delay.TotalSeconds);
                 await Task.Delay(delay, cancellationToken);

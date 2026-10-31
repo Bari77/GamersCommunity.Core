@@ -5,12 +5,14 @@ using Microsoft.Data.SqlClient;
 namespace GamersCommunity.Core.Database;
 
 /// <summary>
-/// Detects transient SQL Server connectivity failures (startup, container reboot, network blips).
+/// Detects transient SQL Server failures during microservice startup
+/// (container reboot, network blips, user databases still recovering).
 /// </summary>
 public static class SqlConnectivity
 {
     /// <summary>
-    /// Returns whether the exception chain indicates SQL is temporarily unreachable.
+    /// Returns whether startup should retry. Covers SQL being unreachable, and error 1801
+    /// when EF Core tries to create a database that is already registered but not yet open.
     /// </summary>
     public static bool IsUnavailable(Exception ex)
     {
@@ -44,5 +46,5 @@ public static class SqlConnectivity
     }
 
     private static bool IsTransientSqlError(SqlException sql) =>
-        sql.Class >= 20 || sql.Number is 2 or 53 or 64 or 233 or 4060 or -1 or -2;
+        sql.Class >= 20 || sql.Number is 2 or 53 or 64 or 233 or 4060 or 1801 or -1 or -2;
 }
