@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using GamersCommunity.Core.Exceptions;
+using GamersCommunity.Core.Telemetry;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using RabbitMQ.Client;
@@ -128,6 +130,9 @@ public sealed class RabbitRpcClient : IRabbitRpcClient, IAsyncDisposable
             }
         };
 
+        var failed = false;
+        var started = Stopwatch.GetTimestamp();
+        using var activity = BusTelemetry.StartClient($"RPC {queue}", queue);
         try
         {
             consumerTag = await channel.BasicConsumeAsync(
@@ -142,7 +147,9 @@ public sealed class RabbitRpcClient : IRabbitRpcClient, IAsyncDisposable
                 ReplyTo = replyQueue.QueueName,
                 ContentType = "application/json",
                 ContentEncoding = "utf-8",
+                Headers = new Dictionary<string, object?>(),
             };
+            BusTelemetry.Inject(props.Headers);
 
             _logger.Debug("Publishing RPC message to '{Queue}' (corrId={CorrelationId}).", queue, correlationId);
 
@@ -159,7 +166,9 @@ public sealed class RabbitRpcClient : IRabbitRpcClient, IAsyncDisposable
 
             try
             {
-                return await tcs.Task.WaitAsync(waitCts.Token).ConfigureAwait(false);
+                var result = await tcs.Task.WaitAsync(waitCts.Token).ConfigureAwait(false);
+                activity?.SetStatus(ActivityStatusCode.Ok);
+                return result;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -172,8 +181,15 @@ public sealed class RabbitRpcClient : IRabbitRpcClient, IAsyncDisposable
                     $"No response received within the timeout period ({_settings.Timeout}s).");
             }
         }
+        catch
+        {
+            failed = true;
+            activity?.SetStatus(ActivityStatusCode.Error);
+            throw;
+        }
         finally
         {
+            BusTelemetry.RecordRpc(queue, Stopwatch.GetElapsedTime(started).TotalMilliseconds, failed);
             if (!string.IsNullOrWhiteSpace(consumerTag))
             {
                 try

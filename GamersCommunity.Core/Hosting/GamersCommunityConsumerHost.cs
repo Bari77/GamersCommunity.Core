@@ -1,6 +1,7 @@
 using GamersCommunity.Core.Database;
 using GamersCommunity.Core.Rabbit;
 using GamersCommunity.Core.Realtime;
+using GamersCommunity.Core.Telemetry;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -73,6 +74,7 @@ public static class GamersCommunityConsumerHost
                 .ConfigureServices((context, services) =>
                 {
                     services.AddGamersCommunityConsumerCore<TContext, TConsumer>(context.Configuration);
+                    services.AddGamersCommunityTelemetry(context.Configuration, context.HostingEnvironment);
                     configureServices(context, services);
                 });
 

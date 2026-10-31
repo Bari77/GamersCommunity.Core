@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Text;
 using GamersCommunity.Core.Rabbit;
+using GamersCommunity.Core.Telemetry;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using Serilog;
@@ -31,6 +33,10 @@ public sealed class RabbitIntegrationEventPublisher(IOptions<RabbitMQSettings> o
     {
         var channel = await EnsureChannelAsync(exchange, ct);
         var body = Encoding.UTF8.GetBytes(IntegrationEventSerializer.Serialize((object)integrationEvent));
+        var headers = new Dictionary<string, object?>();
+
+        using var activity = BusTelemetry.StartProducer($"publish {exchange}", exchange);
+        BusTelemetry.Inject(headers);
 
         await channel.BasicPublishAsync(
             exchange: exchange,
@@ -43,9 +49,11 @@ public sealed class RabbitIntegrationEventPublisher(IOptions<RabbitMQSettings> o
                 DeliveryMode = DeliveryModes.Persistent,
                 MessageId = integrationEvent.EventId.ToString("N"),
                 Type = integrationEvent.Type,
+                Headers = headers,
             },
             body: body,
             cancellationToken: ct);
+        activity?.SetStatus(ActivityStatusCode.Ok);
 
         logger.Debug(
             "Published integration event '{Type}' on exchange '{Exchange}' (eventId={EventId}).",

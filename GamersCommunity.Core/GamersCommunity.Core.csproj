@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
 	<PackageId>GamersCommunity.Core</PackageId>
-	<Version>9.8.5</Version>
+	<Version>9.9.0</Version>
 	<Authors>Bari</Authors>
 	<Description>GamersCommunity Core package</Description>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -37,10 +37,20 @@
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
     <PackageReference Include="HtmlSanitizer" Version="9.2.1039" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.1" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.20.1" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.20.1" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.20.1" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.20.1" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.SqlClient" Version="1.20.1" />
     <PackageReference Include="RabbitMQ.Client" Version="7.2.0" />
     <PackageReference Include="Serilog" Version="4.3.0" />
     <PackageReference Include="xunit.assert" Version="2.9.3" />
     <PackageReference Include="xunit.extensibility.core" Version="2.9.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GamersCommunity.Core.Logging\GamersCommunity.Core.Logging.csproj" />
   </ItemGroup>
 
   <ItemGroup>

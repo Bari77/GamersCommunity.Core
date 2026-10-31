@@ -1,6 +1,8 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Serilog;
 using Serilog.Events;
+using Serilog.Sinks.OpenTelemetry;
 using Serilog.Sinks.SystemConsole.Themes;
 
 namespace GamersCommunity.Core.Logging;
@@ -21,6 +23,8 @@ namespace GamersCommunity.Core.Logging;
 /// Serilog internal diagnostics are written to <c>serilog_errors.txt</c> via <see cref="Serilog.Debugging.SelfLog"/>.
 /// In production, a rolling file sink is enabled; a Seq sink is also configured when
 /// <c>SeqPath</c> and <c>SeqKey</c> are provided in <see cref="LoggerSettings"/>.
+/// An OTLP sink is added beside console and Seq when <see cref="TelemetryExport.ResolveOtlpEndpoint"/>
+/// returns an endpoint. Console output is unchanged.
 /// </para>
 /// </remarks>
 public static class Logger
@@ -83,14 +87,26 @@ public static class Logger
     #endregion
 
     /// <summary>
+    /// Application name from the latest <see cref="Initialize"/> call. OpenTelemetry uses it as <c>service.name</c>.
+    /// </summary>
+    public static string? ApplicationName { get; private set; }
+
+    /// <summary>
     /// Initializes the global <see cref="Serilog.Log.Logger"/> instance using the provided settings.
     /// </summary>
     /// <param name="config">Typed logger settings (sinks/options like file path, Seq, etc.).</param>
     /// <param name="applicationName">Application name to enrich as a property on every log event.</param>
     /// <param name="environment">Host environment used to detect production and enrich log events.</param>
-    public static void Initialize(LoggerSettings config, string applicationName, IHostEnvironment environment)
+    /// <param name="configuration">Optional configuration used to resolve <c>Telemetry:OtlpEndpoint</c>.</param>
+    public static void Initialize(
+        LoggerSettings config,
+        string applicationName,
+        IHostEnvironment environment,
+        IConfiguration? configuration = null)
     {
-        Log.Logger = GetConfiguration(config, applicationName, environment).CreateLogger();
+        ApplicationName = applicationName;
+        var otlpEndpoint = TelemetryExport.ResolveOtlpEndpoint(environment, configuration);
+        Log.Logger = GetConfiguration(config, applicationName, environment, otlpEndpoint).CreateLogger();
     }
 
     /// <summary>
@@ -99,6 +115,7 @@ public static class Logger
     /// <param name="config">Typed logger settings.</param>
     /// <param name="applicationName">Application name to enrich into events.</param>
     /// <param name="environment">Current host environment.</param>
+    /// <param name="otlpEndpoint">OTLP/gRPC endpoint, or <c>null</c> to skip the OTLP sink.</param>
     /// <returns>A fully configured <see cref="LoggerConfiguration"/> that can create the root logger.</returns>
     /// <remarks>
     /// <para>
@@ -110,9 +127,14 @@ public static class Logger
     /// Console output is split in two by message template — messages starting with <c>HTTP</c> use the HTTP
     /// template, the others the default one — then again by level so that errors and fatals render their
     /// message in red. In production, a rolling file sink is added; when configured, a Seq sink is also enabled.
+    /// The OTLP sink, when an endpoint is resolved, is added beside those sinks.
     /// </para>
     /// </remarks>
-    private static LoggerConfiguration GetConfiguration(LoggerSettings config, string applicationName, IHostEnvironment environment)
+    private static LoggerConfiguration GetConfiguration(
+        LoggerSettings config,
+        string applicationName,
+        IHostEnvironment environment,
+        string? otlpEndpoint)
     {
         Serilog.Debugging.SelfLog.Enable(msg => File.AppendAllText("serilog_errors.txt", msg + "\n"));
 
@@ -143,6 +165,18 @@ public static class Logger
                 serverUrl: config.SeqPath,
                 restrictedToMinimumLevel: config.MinimumLevel.Seq,
                 apiKey: config.SeqKey);
+        }
+
+        if (!string.IsNullOrEmpty(otlpEndpoint))
+        {
+            loggerConfiguration.WriteTo.OpenTelemetry(
+                endpoint: otlpEndpoint,
+                protocol: OtlpProtocol.Grpc,
+                resourceAttributes: new Dictionary<string, object>
+                {
+                    ["service.name"] = applicationName,
+                    ["deployment.environment.name"] = environment.EnvironmentName,
+                });
         }
 
         return loggerConfiguration;

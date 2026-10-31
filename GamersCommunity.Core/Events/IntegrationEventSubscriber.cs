@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Text;
 using GamersCommunity.Core.Rabbit;
+using GamersCommunity.Core.Telemetry;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
@@ -92,6 +94,7 @@ public abstract class IntegrationEventSubscriber(IOptions<RabbitMQSettings> opts
                 consumer.ReceivedAsync += async (_, ea) =>
                 {
                     var json = Encoding.UTF8.GetString(ea.Body.ToArray());
+                    using var trace = BusTelemetry.StartConsumer("event", ea.BasicProperties?.Headers, Queue);
                     try
                     {
                         var type = IntegrationEventSerializer.ReadType(json);
@@ -101,6 +104,7 @@ public abstract class IntegrationEventSubscriber(IOptions<RabbitMQSettings> opts
                         }
                         else
                         {
+                            trace.SetName($"event {type}");
                             await HandleAsync(type, json, stoppingToken);
                         }
 
@@ -108,6 +112,7 @@ public abstract class IntegrationEventSubscriber(IOptions<RabbitMQSettings> opts
                     }
                     catch (Exception ex)
                     {
+                        trace.Activity?.SetStatus(ActivityStatusCode.Error);
                         logger.Error(ex, "Failed to handle integration event on '{Queue}'.", Queue);
                         await channel.BasicNackAsync(ea.DeliveryTag, false, requeue: false, cancellationToken: stoppingToken);
                     }

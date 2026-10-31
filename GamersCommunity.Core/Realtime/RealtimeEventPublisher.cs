@@ -1,8 +1,10 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using GamersCommunity.Core.Rabbit;
 using GamersCommunity.Core.Serialization;
+using GamersCommunity.Core.Telemetry;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using Serilog;
@@ -37,6 +39,10 @@ public sealed class RealtimeEventPublisher(IOptions<RabbitMQSettings> opts, ILog
     {
         var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payload, JsonOpts));
         var channel = await EnsureChannelAsync(ct);
+        var headers = new Dictionary<string, object?>();
+
+        using var activity = BusTelemetry.StartProducer($"realtime {RealtimeQueues.Gateway}", RealtimeQueues.Gateway);
+        BusTelemetry.Inject(headers);
 
         await channel.BasicPublishAsync(
             exchange: string.Empty,
@@ -47,9 +53,11 @@ public sealed class RealtimeEventPublisher(IOptions<RabbitMQSettings> opts, ILog
                 ContentType = "application/json",
                 ContentEncoding = "utf-8",
                 DeliveryMode = DeliveryModes.Persistent,
+                Headers = headers,
             },
             body: body,
             cancellationToken: ct);
+        activity?.SetStatus(ActivityStatusCode.Ok);
 
         logger.Debug("Published realtime event to '{Queue}'.", RealtimeQueues.Gateway);
     }

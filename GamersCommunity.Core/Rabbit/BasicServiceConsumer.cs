@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Text;
 using GamersCommunity.Core.Exceptions;
+using GamersCommunity.Core.Telemetry;
 using GamersCommunity.Core.Serialization;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
@@ -109,6 +111,7 @@ public abstract class BasicServiceConsumer(IOptions<RabbitMQSettings> opts, BusR
                 consumer.ReceivedAsync += async (_, ea) =>
                 {
                     var props = ea.BasicProperties;
+                    using var trace = BusTelemetry.StartConsumer("consume", props?.Headers, QUEUE);
                     try
                     {
                         var body = ea.Body.ToArray();
@@ -129,6 +132,7 @@ public abstract class BasicServiceConsumer(IOptions<RabbitMQSettings> opts, BusR
                             return;
                         }
 
+                        trace.SetName($"{parsed.Type} {parsed.Resource} {parsed.Action}");
                         logger.Debug("Message received: type={Type}, resource={Resource}, action={Action}.", parsed.Type, parsed.Resource, parsed.Action);
 
                         try
@@ -138,11 +142,13 @@ public abstract class BasicServiceConsumer(IOptions<RabbitMQSettings> opts, BusR
                         }
                         catch (AppException ex)
                         {
+                            trace.Activity?.SetStatus(ActivityStatusCode.Error);
                             logger.Error(ex, "Error while routing message: type={Type}, resource={Resource}, action={Action}.", parsed.Type, parsed.Resource, parsed.Action);
                             await ReplyAsync(channel, props, new RpcEnvelope<object>(false, null, new RpcError(ex.Code, ex.Message, ex.StackTrace)), ct);
                         }
                         catch (Exception ex)
                         {
+                            trace.Activity?.SetStatus(ActivityStatusCode.Error);
                             logger.Error(ex, "Error while routing message: type={Type}, resource={Resource}, action={Action}.", parsed.Type, parsed.Resource, parsed.Action);
                             await ReplyAsync(channel, props, new RpcEnvelope<object>(false, null, new RpcError("MS_ERROR", ex.Message, ex.StackTrace)), ct);
                         }
@@ -150,6 +156,7 @@ public abstract class BasicServiceConsumer(IOptions<RabbitMQSettings> opts, BusR
                     catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
                     catch (Exception ex)
                     {
+                        trace.Activity?.SetStatus(ActivityStatusCode.Error);
                         logger.Error(ex, "Unhandled error while processing an incoming message.");
                         await ReplyAsync(channel, ea.BasicProperties, new RpcEnvelope<object>(false, null,
                             new RpcError("UNHANDLED", ex.Message, ex.StackTrace)), ct);
