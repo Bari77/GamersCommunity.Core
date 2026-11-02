@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using System.Text;
 
 namespace GamersCommunity.Core.Telemetry;
 
@@ -8,7 +9,8 @@ namespace GamersCommunity.Core.Telemetry;
 /// Transport spans stay on <see cref="BusTelemetry"/>.
 /// </summary>
 /// <remarks>
-/// Tag an operation with a closed name (<c>Users.Update</c>, <c>user.identity.changed</c>).
+/// A command span is <c>Users.Touch</c>. An event span is <c>user.identity.changed</c>.
+/// The Rabbit span stays the queue name, so a trace reads business, then transport, then business.
 /// Do not tag user ids, emails, tokens, or payloads: those series never stay bounded.
 /// </remarks>
 public static class GamersTelemetry
@@ -71,22 +73,49 @@ public static class GamersTelemetry
     }
 
     /// <summary>
-    /// <c>Users.Update</c> when both parts are a short token, otherwise <c>unknown</c> or the resource alone.
+    /// <c>Users.Create</c> when both parts are a short token. An all-caps action such as <c>CREATE</c> or <c>ADD_GUILD_MEMBER</c> is written in Pascal case.
     /// </summary>
     public static string OperationName(string? resource, string? action)
     {
-        var left = Token(resource);
+        var left = Pascal(Token(resource));
         if (left is null)
             return "unknown";
 
-        var right = Token(action);
+        var right = Pascal(Token(action));
         return right is null ? left : $"{left}.{right}";
     }
 
     /// <summary>
-    /// Keeps a short event discriminator, or <c>unknown</c> when it is not a token.
+    /// Keeps a lowercase dotted event name such as <c>user.identity.changed</c>, or <c>unknown</c>.
     /// </summary>
-    public static string EventName(string? type) => Token(type) ?? "unknown";
+    public static string EventName(string? type)
+    {
+        var token = Token(type);
+        if (token is null || !token.Contains('.'))
+            return "unknown";
+
+        return token.ToLowerInvariant();
+    }
+
+    private static string? Pascal(string? value)
+    {
+        if (value is null)
+            return null;
+
+        if (value.Any(char.IsLower))
+            return value;
+
+        var parts = value.Split('_', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var builder = new StringBuilder(value.Length);
+        foreach (var part in parts)
+        {
+            builder.Append(char.ToUpperInvariant(part[0]));
+            if (part.Length > 1)
+                builder.Append(part[1..].ToLowerInvariant());
+        }
+
+        return builder.Length == 0 ? null : builder.ToString();
+    }
 
     internal static void Record(string operation, double elapsedMs, bool failed)
     {

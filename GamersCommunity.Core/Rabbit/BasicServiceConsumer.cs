@@ -134,7 +134,6 @@ public abstract class BasicServiceConsumer(IOptions<RabbitMQSettings> opts, BusR
                             return;
                         }
 
-                        trace.SetName($"{parsed.Type} {parsed.Resource} {parsed.Action}");
                         logger.Debug("Message received: type={Type}, resource={Resource}, action={Action}.", parsed.Type, parsed.Resource, parsed.Action);
 
                         try

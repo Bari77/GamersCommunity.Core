@@ -105,7 +105,6 @@ public abstract class IntegrationEventSubscriber(IOptions<RabbitMQSettings> opts
                         }
                         else
                         {
-                            trace.SetName($"event {type}");
                             using var operation = GamersTelemetry.StartEvent(type);
                             try
                             {
