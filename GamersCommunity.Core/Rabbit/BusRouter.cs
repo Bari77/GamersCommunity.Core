@@ -1,5 +1,6 @@
 using GamersCommunity.Core.Exceptions;
 using GamersCommunity.Core.Services;
+using GamersCommunity.Core.Telemetry;
 
 namespace GamersCommunity.Core.Rabbit;
 
@@ -19,9 +20,21 @@ public sealed class BusRouter(IEnumerable<IBusService> services)
             s.Type == message.Type &&
             s.Resource.Equals(message.Resource, StringComparison.OrdinalIgnoreCase));
 
-        if (service is null)
-            throw new NotFoundException("SERVICE_NOT_FOUND", $"No service found for {message.Type}/{message.Resource}");
+        var operation = service is null
+            ? "unknown"
+            : GamersTelemetry.OperationName(service.Resource, message.Action);
+        using var scope = GamersTelemetry.StartOperation(operation);
+        try
+        {
+            if (service is null)
+                throw new NotFoundException("SERVICE_NOT_FOUND", $"No service found for {message.Type}/{message.Resource}");
 
-        return await service.HandleAsync(message, ct);
+            return await service.HandleAsync(message, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            scope.Fail();
+            throw;
+        }
     }
 }

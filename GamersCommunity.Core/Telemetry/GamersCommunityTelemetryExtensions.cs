@@ -38,6 +38,7 @@ public static class GamersCommunityTelemetryExtensions
             .ConfigureResource(resource => resource.AddService(TelemetryExport.ServiceName))
             .WithTracing(tracing => tracing
                 .AddSource(BusTelemetry.SourceName)
+                .AddSource(GamersTelemetry.SourceName)
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
                 .AddSqlClientInstrumentation()
@@ -47,6 +48,11 @@ public static class GamersCommunityTelemetryExtensions
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
                 .AddMeter(BusTelemetry.MeterName)
+                .AddMeter(GamersTelemetry.MeterName)
+                .AddView(GamersTelemetry.DurationName, new ExplicitBucketHistogramConfiguration
+                {
+                    Boundaries = [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000],
+                })
                 .AddOtlpExporter(options => ConfigureOtlp(options, otlp)));
 
         return services;

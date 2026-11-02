@@ -30,6 +30,9 @@ public static class BusTelemetry
     private static readonly Counter<long> RpcErrors = Meter.CreateCounter<long>(
         "gc.bus.rpc.errors",
         description: "Rabbit RPC calls that failed.");
+    private static readonly Counter<long> Messages = Meter.CreateCounter<long>(
+        "gc.bus.messages",
+        description: "RabbitMQ messages handled by a consumer.");
 
     private static readonly TextMapPropagator Propagator = Propagators.DefaultTextMapPropagator;
 
@@ -77,6 +80,20 @@ public static class BusTelemetry
             new PropagationContext(activity.Context, Baggage.Current),
             headers,
             static (carrier, key, value) => carrier[key] = value);
+    }
+
+    /// <summary>
+    /// Counts one consumed message. The destination is the queue name, which stays a closed set.
+    /// </summary>
+    /// <param name="destination">Queue name.</param>
+    /// <param name="failed">Whether handling the message failed.</param>
+    public static void RecordMessage(string? destination, bool failed)
+    {
+        Messages.Add(1, new TagList
+        {
+            { "messaging.destination.name", string.IsNullOrWhiteSpace(destination) ? "unknown" : destination },
+            { "result", failed ? "error" : "ok" },
+        });
     }
 
     /// <summary>

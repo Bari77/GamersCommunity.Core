@@ -95,6 +95,7 @@ public abstract class IntegrationEventSubscriber(IOptions<RabbitMQSettings> opts
                 {
                     var json = Encoding.UTF8.GetString(ea.Body.ToArray());
                     using var trace = BusTelemetry.StartConsumer("event", ea.BasicProperties?.Headers, Queue);
+                    var failed = false;
                     try
                     {
                         var type = IntegrationEventSerializer.ReadType(json);
@@ -105,16 +106,30 @@ public abstract class IntegrationEventSubscriber(IOptions<RabbitMQSettings> opts
                         else
                         {
                             trace.SetName($"event {type}");
-                            await HandleAsync(type, json, stoppingToken);
+                            using var operation = GamersTelemetry.StartEvent(type);
+                            try
+                            {
+                                await HandleAsync(type, json, stoppingToken);
+                            }
+                            catch (Exception ex) when (ex is not OperationCanceledException)
+                            {
+                                operation.Fail();
+                                throw;
+                            }
                         }
 
                         await channel.BasicAckAsync(ea.DeliveryTag, false, stoppingToken);
                     }
                     catch (Exception ex)
                     {
+                        failed = true;
                         trace.Activity?.SetStatus(ActivityStatusCode.Error);
                         logger.Error(ex, "Failed to handle integration event on '{Queue}'.", Queue);
                         await channel.BasicNackAsync(ea.DeliveryTag, false, requeue: false, cancellationToken: stoppingToken);
+                    }
+                    finally
+                    {
+                        BusTelemetry.RecordMessage(Queue, failed);
                     }
                 };
 

@@ -35,24 +35,34 @@ public sealed class RabbitIntegrationEventPublisher(IOptions<RabbitMQSettings> o
         var body = Encoding.UTF8.GetBytes(IntegrationEventSerializer.Serialize((object)integrationEvent));
         var headers = new Dictionary<string, object?>();
 
+        using var operation = GamersTelemetry.StartEvent(integrationEvent.Type);
         using var activity = BusTelemetry.StartProducer($"publish {exchange}", exchange);
         BusTelemetry.Inject(headers);
 
-        await channel.BasicPublishAsync(
-            exchange: exchange,
-            routingKey: string.Empty,
-            mandatory: false,
-            basicProperties: new BasicProperties
-            {
-                ContentType = "application/json",
-                ContentEncoding = "utf-8",
-                DeliveryMode = DeliveryModes.Persistent,
-                MessageId = integrationEvent.EventId.ToString("N"),
-                Type = integrationEvent.Type,
-                Headers = headers,
-            },
-            body: body,
-            cancellationToken: ct);
+        try
+        {
+            await channel.BasicPublishAsync(
+                exchange: exchange,
+                routingKey: string.Empty,
+                mandatory: false,
+                basicProperties: new BasicProperties
+                {
+                    ContentType = "application/json",
+                    ContentEncoding = "utf-8",
+                    DeliveryMode = DeliveryModes.Persistent,
+                    MessageId = integrationEvent.EventId.ToString("N"),
+                    Type = integrationEvent.Type,
+                    Headers = headers,
+                },
+                body: body,
+                cancellationToken: ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            operation.Fail();
+            throw;
+        }
+
         activity?.SetStatus(ActivityStatusCode.Ok);
 
         logger.Debug(

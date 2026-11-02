@@ -112,6 +112,7 @@ public abstract class BasicServiceConsumer(IOptions<RabbitMQSettings> opts, BusR
                 {
                     var props = ea.BasicProperties;
                     using var trace = BusTelemetry.StartConsumer("consume", props?.Headers, QUEUE);
+                    var failed = false;
                     try
                     {
                         var body = ea.Body.ToArray();
@@ -126,6 +127,7 @@ public abstract class BasicServiceConsumer(IOptions<RabbitMQSettings> opts, BusR
                         }
                         catch (Exception ex)
                         {
+                            failed = true;
                             logger.Error(ex, "Failed to deserialize incoming message. PayloadLength={Length}", body.Length);
                             await ReplyAsync(channel, props, new RpcEnvelope<object>(false, null,
                                 new RpcError("DESERIALIZE_ERROR", "Invalid payload.", ex.Message)), ct);
@@ -142,24 +144,34 @@ public abstract class BasicServiceConsumer(IOptions<RabbitMQSettings> opts, BusR
                         }
                         catch (AppException ex)
                         {
+                            failed = true;
                             trace.Activity?.SetStatus(ActivityStatusCode.Error);
                             logger.Error(ex, "Error while routing message: type={Type}, resource={Resource}, action={Action}.", parsed.Type, parsed.Resource, parsed.Action);
                             await ReplyAsync(channel, props, new RpcEnvelope<object>(false, null, new RpcError(ex.Code, ex.Message, ex.StackTrace)), ct);
                         }
                         catch (Exception ex)
                         {
+                            failed = true;
                             trace.Activity?.SetStatus(ActivityStatusCode.Error);
                             logger.Error(ex, "Error while routing message: type={Type}, resource={Resource}, action={Action}.", parsed.Type, parsed.Resource, parsed.Action);
                             await ReplyAsync(channel, props, new RpcEnvelope<object>(false, null, new RpcError("MS_ERROR", ex.Message, ex.StackTrace)), ct);
                         }
                     }
-                    catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                    {
+                        failed = false;
+                    }
                     catch (Exception ex)
                     {
+                        failed = true;
                         trace.Activity?.SetStatus(ActivityStatusCode.Error);
                         logger.Error(ex, "Unhandled error while processing an incoming message.");
                         await ReplyAsync(channel, ea.BasicProperties, new RpcEnvelope<object>(false, null,
                             new RpcError("UNHANDLED", ex.Message, ex.StackTrace)), ct);
+                    }
+                    finally
+                    {
+                        BusTelemetry.RecordMessage(QUEUE, failed);
                     }
                 };
 
