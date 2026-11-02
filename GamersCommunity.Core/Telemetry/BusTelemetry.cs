@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Text;
@@ -30,11 +31,30 @@ public static class BusTelemetry
     private static readonly Counter<long> RpcErrors = Meter.CreateCounter<long>(
         "gc.bus.rpc.errors",
         description: "Rabbit RPC calls that failed.");
+    /// <summary>Histogram that carries consumer handling time, in milliseconds.</summary>
+    internal const string ProcessDurationName = "gc.bus.process.duration";
+
+    /// <summary>Gauge of messages currently inside a consumer, one series per queue.</summary>
+    internal const string InflightName = "gc.bus.inflight";
+
     private static readonly Counter<long> Messages = Meter.CreateCounter<long>(
         "gc.bus.messages",
         description: "RabbitMQ messages handled by a consumer.");
+    private static readonly Histogram<double> ProcessDuration = Meter.CreateHistogram<double>(
+        ProcessDurationName,
+        unit: "ms",
+        description: "Time spent handling one RabbitMQ message.");
+    private static readonly ConcurrentDictionary<string, int> InflightByQueue = new();
 
     private static readonly TextMapPropagator Propagator = Propagators.DefaultTextMapPropagator;
+
+    static BusTelemetry()
+    {
+        Meter.CreateObservableGauge(
+            InflightName,
+            ObserveInflight,
+            description: "RabbitMQ messages currently being handled. Labeled only by queue.");
+    }
 
     /// <summary>
     /// Starts a client span for an outbound Rabbit publish and makes it current.
@@ -87,13 +107,32 @@ public static class BusTelemetry
     /// </summary>
     /// <param name="destination">Queue name.</param>
     /// <param name="failed">Whether handling the message failed.</param>
-    public static void RecordMessage(string? destination, bool failed)
+    public static void RecordMessage(string? destination, bool failed) =>
+        RecordHandled(destination, failed, elapsedMs: null, eventType: null);
+
+    /// <summary>
+    /// Counts one consumed message and records how long it took.
+    /// </summary>
+    /// <param name="destination">Queue name. Stored as <c>messaging.destination.name</c>.</param>
+    /// <param name="failed">Whether handling the message failed.</param>
+    /// <param name="elapsedMs">Handling time in milliseconds.</param>
+    /// <param name="eventType">
+    /// Integration event name such as <c>user.identity.changed</c>.
+    /// Omitted for a command, and never a user id.
+    /// </param>
+    internal static void RecordHandled(string? destination, bool failed, double elapsedMs, string? eventType) =>
+        RecordHandled(destination, failed, (double?)elapsedMs, eventType);
+
+    /// <summary>
+    /// Marks one message as in flight until the returned handle is disposed.
+    /// </summary>
+    /// <param name="destination">Queue name.</param>
+    /// <returns>A handle that decrements <see cref="InflightName"/>.</returns>
+    internal static IDisposable Enter(string? destination)
     {
-        Messages.Add(1, new TagList
-        {
-            { "messaging.destination.name", string.IsNullOrWhiteSpace(destination) ? "unknown" : destination },
-            { "result", failed ? "error" : "ok" },
-        });
+        var queue = Queue(destination);
+        InflightByQueue.AddOrUpdate(queue, 1, static (_, count) => count + 1);
+        return new InflightLease(queue);
     }
 
     /// <summary>
@@ -108,6 +147,52 @@ public static class BusTelemetry
         RpcDuration.Record(elapsedMs, tags);
         if (failed)
             RpcErrors.Add(1, tags);
+    }
+
+    private static void RecordHandled(string? destination, bool failed, double? elapsedMs, string? eventType)
+    {
+        var tags = new TagList
+        {
+            { "messaging.destination.name", Queue(destination) },
+            { "result", failed ? "error" : "ok" },
+        };
+        var eventName = GamersTelemetry.EventName(eventType);
+        if (eventName != "unknown")
+            tags.Add("event", eventName);
+
+        Messages.Add(1, tags);
+        if (elapsedMs is double elapsed)
+            ProcessDuration.Record(elapsed, tags);
+    }
+
+    private static IEnumerable<Measurement<int>> ObserveInflight()
+    {
+        foreach (var pair in InflightByQueue)
+            yield return new Measurement<int>(pair.Value, new TagList { { "messaging.destination.name", pair.Key } });
+    }
+
+    private static string Queue(string? destination)
+    {
+        if (string.IsNullOrWhiteSpace(destination))
+            return "unknown";
+
+        var text = destination.Trim();
+        if (text.Length is < 1 or > 80)
+            return "unknown";
+
+        foreach (var character in text)
+        {
+            var allowed = character is (>= 'A' and <= 'Z')
+                or (>= 'a' and <= 'z')
+                or (>= '0' and <= '9')
+                or '_'
+                or '.'
+                or '-';
+            if (!allowed)
+                return "unknown";
+        }
+
+        return text;
     }
 
     private static Activity? Start(string name, ActivityKind kind, string? destination, ActivityContext parent)
@@ -159,5 +244,18 @@ public static class BusTelemetry
 
         value = null;
         return false;
+    }
+
+    private sealed class InflightLease(string queue) : IDisposable
+    {
+        private int _disposed;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+                return;
+
+            InflightByQueue.AddOrUpdate(queue, 0, static (_, count) => count > 0 ? count - 1 : 0);
+        }
     }
 }

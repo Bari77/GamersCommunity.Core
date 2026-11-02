@@ -112,6 +112,8 @@ public abstract class BasicServiceConsumer(IOptions<RabbitMQSettings> opts, BusR
                 {
                     var props = ea.BasicProperties;
                     using var trace = BusTelemetry.StartConsumer("consume", props?.Headers, QUEUE);
+                    using var inflight = BusTelemetry.Enter(QUEUE);
+                    var started = Stopwatch.GetTimestamp();
                     var failed = false;
                     try
                     {
@@ -170,7 +172,7 @@ public abstract class BasicServiceConsumer(IOptions<RabbitMQSettings> opts, BusR
                     }
                     finally
                     {
-                        BusTelemetry.RecordMessage(QUEUE, failed);
+                        BusTelemetry.RecordHandled(QUEUE, failed, Stopwatch.GetElapsedTime(started).TotalMilliseconds, eventType: null);
                     }
                 };
 

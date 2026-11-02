@@ -95,10 +95,14 @@ public abstract class IntegrationEventSubscriber(IOptions<RabbitMQSettings> opts
                 {
                     var json = Encoding.UTF8.GetString(ea.Body.ToArray());
                     using var trace = BusTelemetry.StartConsumer("event", ea.BasicProperties?.Headers, Queue);
+                    using var inflight = BusTelemetry.Enter(Queue);
+                    var started = Stopwatch.GetTimestamp();
                     var failed = false;
+                    var eventType = (string?)null;
                     try
                     {
                         var type = IntegrationEventSerializer.ReadType(json);
+                        eventType = type;
                         if (string.IsNullOrWhiteSpace(type))
                         {
                             logger.Warning("Integration event without a 'type' discriminator on '{Queue}'.", Queue);
@@ -128,7 +132,11 @@ public abstract class IntegrationEventSubscriber(IOptions<RabbitMQSettings> opts
                     }
                     finally
                     {
-                        BusTelemetry.RecordMessage(Queue, failed);
+                        BusTelemetry.RecordHandled(
+                            Queue,
+                            failed,
+                            Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+                            eventType);
                     }
                 };
 
